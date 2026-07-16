@@ -19,8 +19,8 @@ type LoginParam struct {
 }
 
 type AuthOutput struct {
-	AccessToken string          `json:"access_token"`
-	TokenType   string          `json:"token_type"`
+	AccessToken string          `json:"access_token" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."`
+	TokenType   string          `json:"token_type" example:"Bearer"`
 	User        models.UserResp `json:"user"`
 }
 

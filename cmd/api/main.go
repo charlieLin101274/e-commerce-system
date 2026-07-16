@@ -7,6 +7,15 @@ import (
 	"github.com/linenxing/e-commerce-system/base/logger"
 )
 
+// @title Simple E-Commerce API
+// @version 1.0
+// @description Backend APIs for the simple e-commerce MVP.
+// @BasePath /
+// @schemes http https
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Enter the token with the Bearer prefix, for example: Bearer <token>
 func main() {
 	cfg, err := config.Load()
 	if err != nil {

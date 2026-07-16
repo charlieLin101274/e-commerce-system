@@ -16,3 +16,11 @@ docker compose up --build
 ```
 
 The API listens on `http://localhost:8080`.
+
+Swagger UI is available at `http://localhost:8080/swagger/index.html`.
+
+Regenerate the Swagger specification after changing API annotations:
+
+```bash
+make swagger
+```

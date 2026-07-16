@@ -17,10 +17,13 @@ import (
 	"github.com/linenxing/e-commerce-system/base/logger"
 	"github.com/linenxing/e-commerce-system/base/postgres"
 	"github.com/linenxing/e-commerce-system/cmd/api/apis"
+	_ "github.com/linenxing/e-commerce-system/docs/swagger"
 	"github.com/linenxing/e-commerce-system/middlewares"
 	authservice "github.com/linenxing/e-commerce-system/services/auth"
 	userstore "github.com/linenxing/e-commerce-system/stores/user"
 	"github.com/rs/zerolog"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 const (
@@ -56,6 +59,7 @@ func NewApplication(ctx context.Context, cfg config.Config, log zerolog.Logger) 
 	router.Use(middlewares.RequestLogger(log), middlewares.Recovery())
 	apis.RegisterHealthRoute(router)
 	authAPI.RegisterRoutes(router, middlewares.Authentication(tokenManager))
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	return &Application{
 		logger: log,

@@ -10,6 +10,7 @@ import (
 	"github.com/linenxing/e-commerce-system/base/logger"
 	"github.com/linenxing/e-commerce-system/base/response"
 	"github.com/linenxing/e-commerce-system/middlewares"
+	"github.com/linenxing/e-commerce-system/models"
 	authservice "github.com/linenxing/e-commerce-system/services/auth"
 )
 
@@ -21,16 +22,18 @@ func NewAuthAPI(service authservice.Service) *AuthAPI {
 	return &AuthAPI{service: service}
 }
 
-type registerRequest struct {
+type RegisterRequest struct {
 	Email    string `json:"email" binding:"required,email,max=320"`
 	Password string `json:"password" binding:"required,min=8,max=72"`
 	Name     string `json:"name" binding:"required,max=100"`
 }
 
-type loginRequest struct {
+type LoginRequest struct {
 	Email    string `json:"email" binding:"required,email,max=320"`
 	Password string `json:"password" binding:"required,max=72"`
 }
+
+type UserResponse = models.UserResp
 
 func (a *AuthAPI) RegisterRoutes(router *gin.Engine, authMiddleware gin.HandlerFunc) {
 	authRoutes := router.Group("/auth")
@@ -42,8 +45,20 @@ func (a *AuthAPI) RegisterRoutes(router *gin.Engine, authMiddleware gin.HandlerF
 	userRoutes.GET("/me", a.GetCurrentUser)
 }
 
+// Register creates a customer account.
+// @Summary Register customer
+// @Description Create a customer account and return a JWT access token.
+// @Tags Authentication
+// @Accept json
+// @Produce json
+// @Param request body RegisterRequest true "Registration request"
+// @Success 201 {object} authservice.AuthOutput
+// @Failure 400 {object} response.ErrorBody
+// @Failure 409 {object} response.ErrorBody
+// @Failure 500 {object} response.ErrorBody
+// @Router /auth/register [post]
 func (a *AuthAPI) Register(c *gin.Context) {
-	var request registerRequest
+	var request RegisterRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		response.Error(c, http.StatusBadRequest, "invalid_request", "invalid registration request")
 		return
@@ -61,8 +76,20 @@ func (a *AuthAPI) Register(c *gin.Context) {
 	c.JSON(http.StatusCreated, output)
 }
 
+// Login authenticates a customer.
+// @Summary Login
+// @Description Authenticate with email and password and return a JWT access token.
+// @Tags Authentication
+// @Accept json
+// @Produce json
+// @Param request body LoginRequest true "Login request"
+// @Success 200 {object} authservice.AuthOutput
+// @Failure 400 {object} response.ErrorBody
+// @Failure 401 {object} response.ErrorBody
+// @Failure 500 {object} response.ErrorBody
+// @Router /auth/login [post]
 func (a *AuthAPI) Login(c *gin.Context) {
-	var request loginRequest
+	var request LoginRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		response.Error(c, http.StatusBadRequest, "invalid_request", "invalid login request")
 		return
@@ -79,6 +106,17 @@ func (a *AuthAPI) Login(c *gin.Context) {
 	c.JSON(http.StatusOK, output)
 }
 
+// GetCurrentUser returns the authenticated customer.
+// @Summary Get current user
+// @Description Return the user represented by the bearer token.
+// @Tags Users
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} UserResponse
+// @Failure 401 {object} response.ErrorBody
+// @Failure 404 {object} response.ErrorBody
+// @Failure 500 {object} response.ErrorBody
+// @Router /users/me [get]
 func (a *AuthAPI) GetCurrentUser(c *gin.Context) {
 	userID, exists := middlewares.UserIDFromContext(c)
 	if !exists {

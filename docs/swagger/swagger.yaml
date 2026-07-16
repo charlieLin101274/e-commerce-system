@@ -1,0 +1,231 @@
+basePath: /
+definitions:
+  cmd_api_apis.HealthResponse:
+    properties:
+      status:
+        example: ok
+        type: string
+    type: object
+  cmd_api_apis.LoginRequest:
+    properties:
+      email:
+        maxLength: 320
+        type: string
+      password:
+        maxLength: 72
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  cmd_api_apis.RegisterRequest:
+    properties:
+      email:
+        maxLength: 320
+        type: string
+      name:
+        maxLength: 100
+        type: string
+      password:
+        maxLength: 72
+        minLength: 8
+        type: string
+    required:
+    - email
+    - name
+    - password
+    type: object
+  cmd_api_apis.UserResponse:
+    properties:
+      created_at:
+        format: date-time
+        type: string
+      email:
+        example: customer@example.com
+        type: string
+      id:
+        format: uuid
+        type: string
+      name:
+        example: Customer
+        type: string
+      role:
+        allOf:
+        - $ref: '#/definitions/models.UserRole'
+        enum:
+        - customer
+        - admin
+    type: object
+  github_com_linenxing_e-commerce-system_base_response.ErrorBody:
+    properties:
+      code:
+        example: invalid_request
+        type: string
+      message:
+        example: request data is invalid
+        type: string
+    type: object
+  github_com_linenxing_e-commerce-system_services_auth.AuthOutput:
+    properties:
+      access_token:
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+      token_type:
+        example: Bearer
+        type: string
+      user:
+        $ref: '#/definitions/models.UserResp'
+    type: object
+  models.UserResp:
+    properties:
+      created_at:
+        format: date-time
+        type: string
+      email:
+        example: customer@example.com
+        type: string
+      id:
+        format: uuid
+        type: string
+      name:
+        example: Customer
+        type: string
+      role:
+        allOf:
+        - $ref: '#/definitions/models.UserRole'
+        enum:
+        - customer
+        - admin
+    type: object
+  models.UserRole:
+    enum:
+    - customer
+    - admin
+    type: string
+    x-enum-varnames:
+    - UserRoleCustomer
+    - UserRoleAdmin
+info:
+  contact: {}
+  description: Backend APIs for the simple e-commerce MVP.
+  title: Simple E-Commerce API
+  version: "1.0"
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate with email and password and return a JWT access token.
+      parameters:
+      - description: Login request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/cmd_api_apis.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_linenxing_e-commerce-system_services_auth.AuthOutput'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_linenxing_e-commerce-system_base_response.ErrorBody'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_linenxing_e-commerce-system_base_response.ErrorBody'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_linenxing_e-commerce-system_base_response.ErrorBody'
+      summary: Login
+      tags:
+      - Authentication
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Create a customer account and return a JWT access token.
+      parameters:
+      - description: Registration request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/cmd_api_apis.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_linenxing_e-commerce-system_services_auth.AuthOutput'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_linenxing_e-commerce-system_base_response.ErrorBody'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/github_com_linenxing_e-commerce-system_base_response.ErrorBody'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_linenxing_e-commerce-system_base_response.ErrorBody'
+      summary: Register customer
+      tags:
+      - Authentication
+  /health:
+    get:
+      description: Return the current API health status.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/cmd_api_apis.HealthResponse'
+      summary: Health check
+      tags:
+      - System
+  /users/me:
+    get:
+      description: Return the user represented by the bearer token.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/cmd_api_apis.UserResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_linenxing_e-commerce-system_base_response.ErrorBody'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_linenxing_e-commerce-system_base_response.ErrorBody'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_linenxing_e-commerce-system_base_response.ErrorBody'
+      security:
+      - BearerAuth: []
+      summary: Get current user
+      tags:
+      - Users
+schemes:
+- http
+- https
+securityDefinitions:
+  BearerAuth:
+    description: 'Enter the token with the Bearer prefix, for example: Bearer <token>'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

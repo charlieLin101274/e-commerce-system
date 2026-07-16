@@ -24,9 +24,9 @@ type User struct {
 }
 
 type UserResp struct {
-	ID        uuid.UUID `json:"id"`
-	Email     string    `json:"email"`
-	Name      string    `json:"name"`
-	Role      UserRole  `json:"role"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        uuid.UUID `json:"id" format:"uuid"`
+	Email     string    `json:"email" example:"customer@example.com"`
+	Name      string    `json:"name" example:"Customer"`
+	Role      UserRole  `json:"role" enums:"customer,admin"`
+	CreatedAt time.Time `json:"created_at" format:"date-time"`
 }
