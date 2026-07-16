@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/linenxing/e-commerce-system/base/apperror"
@@ -83,15 +82,15 @@ func (s *service) Login(ctx context.Context, input LoginParam) (AuthOutput, erro
 	return s.buildAuthOutput(ctx, user)
 }
 
-func (s *service) GetCurrentUser(ctx context.Context, userID uuid.UUID) (UserOutput, error) {
+func (s *service) GetCurrentUser(ctx context.Context, userID uuid.UUID) (models.UserResp, error) {
 	user, err := s.userStore.GetByID(ctx, userID)
 	if errors.Is(err, userstore.ErrNotFound) {
-		return UserOutput{}, apperror.ErrNotFound
+		return models.UserResp{}, apperror.ErrNotFound
 	}
 	if err != nil {
-		return UserOutput{}, fmt.Errorf("get current user: %w", err)
+		return models.UserResp{}, fmt.Errorf("get current user: %w", err)
 	}
-	return toUserOutput(user), nil
+	return toUserResp(user), nil
 }
 
 func (s *service) buildAuthOutput(ctx context.Context, user models.User) (AuthOutput, error) {
@@ -103,16 +102,16 @@ func (s *service) buildAuthOutput(ctx context.Context, user models.User) (AuthOu
 	return AuthOutput{
 		AccessToken: accessToken,
 		TokenType:   "Bearer",
-		User:        toUserOutput(user),
+		User:        toUserResp(user),
 	}, nil
 }
 
-func toUserOutput(user models.User) UserOutput {
-	return UserOutput{
+func toUserResp(user models.User) models.UserResp {
+	return models.UserResp{
 		ID:        user.ID,
 		Email:     user.Email,
 		Name:      user.Name,
 		Role:      user.Role,
-		CreatedAt: user.CreatedAt.UTC().Format(time.RFC3339),
+		CreatedAt: user.CreatedAt,
 	}
 }

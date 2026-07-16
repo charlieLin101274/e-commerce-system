@@ -18,22 +18,14 @@ type LoginParam struct {
 	Password string
 }
 
-type UserOutput struct {
-	ID        uuid.UUID       `json:"id"`
-	Email     string          `json:"email"`
-	Name      string          `json:"name"`
-	Role      models.UserRole `json:"role"`
-	CreatedAt string          `json:"created_at"`
-}
-
 type AuthOutput struct {
-	AccessToken string     `json:"access_token"`
-	TokenType   string     `json:"token_type"`
-	User        UserOutput `json:"user"`
+	AccessToken string          `json:"access_token"`
+	TokenType   string          `json:"token_type"`
+	User        models.UserResp `json:"user"`
 }
 
 type Service interface {
 	Register(ctx context.Context, input RegisterParam) (AuthOutput, error)
 	Login(ctx context.Context, input LoginParam) (AuthOutput, error)
-	GetCurrentUser(ctx context.Context, userID uuid.UUID) (UserOutput, error)
+	GetCurrentUser(ctx context.Context, userID uuid.UUID) (models.UserResp, error)
 }
