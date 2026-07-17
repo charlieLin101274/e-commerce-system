@@ -9,6 +9,18 @@ Golang, Gin, PostgreSQL based e-commerce MVP.
 - `GET /users/me`
 - `GET /health`
 
+## Commerce APIs
+
+- `GET /products`
+- `GET /products/:id`
+- `GET|POST /admin/products`
+- `PUT|DELETE /admin/products/:id`
+- `GET /cart`
+- `POST /cart/items`
+- `PUT|DELETE /cart/items/:id`
+- `POST|GET /orders`
+- `GET /orders/:id`
+
 ## Run locally
 
 ```bash

@@ -1,5 +1,15 @@
 basePath: /
 definitions:
+  cmd_api_apis.AddCartItemRequest:
+    properties:
+      product_id:
+        type: string
+      quantity:
+        type: integer
+    required:
+    - product_id
+    - quantity
+    type: object
   cmd_api_apis.HealthResponse:
     properties:
       status:
@@ -18,6 +28,29 @@ definitions:
     - email
     - password
     type: object
+  cmd_api_apis.ProductRequest:
+    properties:
+      description:
+        maxLength: 5000
+        type: string
+      name:
+        maxLength: 200
+        type: string
+      price:
+        minimum: 0
+        type: integer
+      status:
+        allOf:
+        - $ref: '#/definitions/models.ProductStatus'
+        enum:
+        - active
+        - inactive
+      stock:
+        minimum: 0
+        type: integer
+    required:
+    - name
+    type: object
   cmd_api_apis.RegisterRequest:
     properties:
       email:
@@ -34,6 +67,13 @@ definitions:
     - email
     - name
     - password
+    type: object
+  cmd_api_apis.UpdateCartItemRequest:
+    properties:
+      quantity:
+        type: integer
+    required:
+    - quantity
     type: object
   cmd_api_apis.UserResponse:
     properties:
@@ -76,6 +116,96 @@ definitions:
       user:
         $ref: '#/definitions/models.UserResp'
     type: object
+  models.CartItemResp:
+    properties:
+      id:
+        type: string
+      product:
+        $ref: '#/definitions/models.ProductResp'
+      quantity:
+        type: integer
+      subtotal:
+        type: integer
+    type: object
+  models.CartResp:
+    properties:
+      id:
+        type: string
+      items:
+        items:
+          $ref: '#/definitions/models.CartItemResp'
+        type: array
+      total_price:
+        type: integer
+    type: object
+  models.OrderItemResp:
+    properties:
+      price:
+        type: integer
+      product_id:
+        type: string
+      product_name:
+        type: string
+      quantity:
+        type: integer
+      subtotal:
+        type: integer
+    type: object
+  models.OrderResp:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      items:
+        items:
+          $ref: '#/definitions/models.OrderItemResp'
+        type: array
+      status:
+        $ref: '#/definitions/models.OrderStatus'
+      total_price:
+        type: integer
+    type: object
+  models.OrderStatus:
+    enum:
+    - completed
+    type: string
+    x-enum-varnames:
+    - OrderStatusCompleted
+  models.ProductResp:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        format: uuid
+        type: string
+      name:
+        type: string
+      price:
+        example: 1000
+        type: integer
+      status:
+        allOf:
+        - $ref: '#/definitions/models.ProductStatus'
+        enum:
+        - active
+        - inactive
+      stock:
+        example: 10
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  models.ProductStatus:
+    enum:
+    - active
+    - inactive
+    type: string
+    x-enum-varnames:
+    - ProductStatusActive
+    - ProductStatusInactive
   models.UserResp:
     properties:
       created_at:
@@ -111,6 +241,72 @@ info:
   title: Simple E-Commerce API
   version: "1.0"
 paths:
+  /admin/products:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Product
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/cmd_api_apis.ProductRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.ProductResp'
+      security:
+      - BearerAuth: []
+      summary: Create product
+      tags:
+      - Admin Products
+  /admin/products/{id}:
+    delete:
+      parameters:
+      - description: Product ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - BearerAuth: []
+      summary: Disable product
+      tags:
+      - Admin Products
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Product ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Product
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/cmd_api_apis.ProductRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ProductResp'
+      security:
+      - BearerAuth: []
+      summary: Update product
+      tags:
+      - Admin Products
   /auth/login:
     post:
       consumes:
@@ -179,6 +375,86 @@ paths:
       summary: Register customer
       tags:
       - Authentication
+  /cart:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.CartResp'
+      security:
+      - BearerAuth: []
+      summary: Get cart
+      tags:
+      - Cart
+  /cart/items:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Cart item
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/cmd_api_apis.AddCartItemRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.CartResp'
+      security:
+      - BearerAuth: []
+      summary: Add cart item
+      tags:
+      - Cart
+  /cart/items/{id}:
+    delete:
+      parameters:
+      - description: Cart item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - BearerAuth: []
+      summary: Remove cart item
+      tags:
+      - Cart
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Cart item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Quantity
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/cmd_api_apis.UpdateCartItemRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.CartResp'
+      security:
+      - BearerAuth: []
+      summary: Update cart item
+      tags:
+      - Cart
   /health:
     get:
       description: Return the current API health status.
@@ -192,6 +468,87 @@ paths:
       summary: Health check
       tags:
       - System
+  /orders:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.OrderResp'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: List my orders
+      tags:
+      - Orders
+    post:
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.OrderResp'
+      security:
+      - BearerAuth: []
+      summary: Create order from cart
+      tags:
+      - Orders
+  /orders/{id}:
+    get:
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.OrderResp'
+      security:
+      - BearerAuth: []
+      summary: Get my order
+      tags:
+      - Orders
+  /products:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.ProductResp'
+            type: array
+      summary: List products
+      tags:
+      - Products
+  /products/{id}:
+    get:
+      parameters:
+      - description: Product ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ProductResp'
+      summary: Get product
+      tags:
+      - Products
   /users/me:
     get:
       description: Return the user represented by the bearer token.

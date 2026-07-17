@@ -43,3 +43,15 @@ func UserIDFromContext(c *gin.Context) (string, bool) {
 	userID, ok := value.(string)
 	return userID, ok
 }
+
+func RequireRole(role string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		value, exists := c.Get(roleContextKey)
+		currentRole, ok := value.(string)
+		if !exists || !ok || currentRole != role {
+			response.Error(c, http.StatusForbidden, "forbidden", "insufficient permissions")
+			return
+		}
+		c.Next()
+	}
+}

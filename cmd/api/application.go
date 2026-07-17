@@ -20,6 +20,12 @@ import (
 	_ "github.com/linenxing/e-commerce-system/docs/swagger"
 	"github.com/linenxing/e-commerce-system/middlewares"
 	authservice "github.com/linenxing/e-commerce-system/services/auth"
+	cartservice "github.com/linenxing/e-commerce-system/services/cart"
+	orderservice "github.com/linenxing/e-commerce-system/services/order"
+	productservice "github.com/linenxing/e-commerce-system/services/product"
+	cartstore "github.com/linenxing/e-commerce-system/stores/cart"
+	orderstore "github.com/linenxing/e-commerce-system/stores/order"
+	productstore "github.com/linenxing/e-commerce-system/stores/product"
 	userstore "github.com/linenxing/e-commerce-system/stores/user"
 	"github.com/rs/zerolog"
 	swaggerFiles "github.com/swaggo/files"
@@ -52,13 +58,26 @@ func NewApplication(ctx context.Context, cfg config.Config, log zerolog.Logger) 
 	)
 	passwordManager := auth.NewBcryptPasswordManager()
 	userStore := userstore.NewPostgresStore(db)
+	productStore := productstore.NewPostgresStore(db)
+	cartStore := cartstore.NewPostgresStore(db)
+	orderStore := orderstore.NewPostgresStore(db)
 	authService := authservice.New(userStore, tokenManager, passwordManager)
+	productService := productservice.New(productStore)
+	cartService := cartservice.New(cartStore, productStore)
+	orderService := orderservice.New(db, orderStore)
 	authAPI := apis.NewAuthAPI(authService)
+	productAPI := apis.NewProductAPI(productService)
+	cartAPI := apis.NewCartAPI(cartService)
+	orderAPI := apis.NewOrderAPI(orderService)
 
 	router := gin.New()
 	router.Use(middlewares.RequestLogger(log), middlewares.Recovery())
 	apis.RegisterHealthRoute(router)
-	authAPI.RegisterRoutes(router, middlewares.Authentication(tokenManager))
+	authMiddleware := middlewares.Authentication(tokenManager)
+	authAPI.RegisterRoutes(router, authMiddleware)
+	productAPI.RegisterRoutes(router, authMiddleware, middlewares.RequireRole("admin"))
+	cartAPI.RegisterRoutes(router, authMiddleware)
+	orderAPI.RegisterRoutes(router, authMiddleware)
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	return &Application{
