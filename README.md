@@ -2,6 +2,9 @@
 
 Golang, Gin, PostgreSQL based e-commerce MVP.
 
+The staged PRD for Campaign, Rule Engine, Notification, Cart Recall, and
+Repurchase is available in [docs/prd](docs/prd/README.md).
+
 ## Member APIs
 
 - `POST /auth/register`
