@@ -3,9 +3,12 @@
 ## Performance
 
 - Public Campaign List/Detail API：p95 小於 300 ms。
-- Rule evaluation：單一 Campaign p95 小於 50 ms；一次 request 最多評估 100 個 Campaign。
+- Rule evaluation：單一 Campaign p95 小於 20 ms；Public request 最多對 20 個 candidate Campaign 執行 evaluation。
+- Public Campaign List 必須先以 status、time range 與 product/category scope 篩選 candidate，再執行 Rule Engine；不得對全部 Campaign 串行評估。
 - Notification task creation：p95 小於 200 ms。
 - Worker throughput 與 queue lag 必須可觀測。
+
+以上 latency 不包含 cold start，且需以固定的 MVP rule depth、condition count 與測試資料量測。若 candidate 超過 20 個，API 應先依 priority 與 Campaign ID 排序後截斷，後續再以 projection/cache 擴充容量。
 
 ## Consistency
 
@@ -13,7 +16,7 @@
 - Consumer 以 `event_id` 實作 inbox deduplication。
 - Notification task 以 database unique idempotency key 防止重複建立。
 - Campaign publish 與 rule version activation 必須在同一 transaction。
-- Attribution 使用 unique constraint 防止重複計算。
+- MVP conversion transition 使用 unique constraint 或等效 database constraint 防止重複記錄；完整 Attribution consistency 列為 post-MVP。
 
 ## Security and Privacy
 
@@ -50,10 +53,10 @@
 - `rule.evaluate`
 - `event.consume`
 - `cart_recall.evaluate`
-- `repurchase.evaluate`
 - `notification.create`
 - `notification.deliver`
-- `attribution.create`
+
+`repurchase.evaluate` 與 `attribution.create` 為 post-MVP spans。
 
 ### Prometheus Metrics
 
@@ -64,8 +67,9 @@
 - `notification_delivery_duration_seconds`
 - `notification_retries_total`
 - `event_consumer_lag_seconds`
-- `attributed_orders_total`
-- `attributed_order_amount_total`
+- `cart_recall_conversions_total`
+
+`attributed_orders_total` 與 `attributed_order_amount_total` 為 post-MVP metrics。
 
 ## Reliability
 
@@ -79,7 +83,8 @@
 
 - Campaign 與 rule versions：至少保留兩年。
 - Eligibility decision log：MVP 保留 90 天。
-- Notification task 與 attribution：至少保留一年。
+- Notification task：至少保留一年。
+- 完整 attribution retention policy 於 post-MVP 定義。
 - Raw event payload：MVP 保留 30 天，再轉為摘要或刪除。
 
 ## Risks

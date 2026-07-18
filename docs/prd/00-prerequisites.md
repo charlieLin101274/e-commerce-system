@@ -46,7 +46,7 @@
 
 ### Product Extensions
 
-- Brand、Category 與活動標籤。
+- Category 與活動標籤；Brand 可於 post-MVP 加入。
 - SKU 可延後至多規格商品 stage。
 
 ### Cart Extensions
@@ -91,3 +91,5 @@ Campaign / Rule Engine / Journey / Notification
 ```
 
 活動平台可以讀取必要 commerce data，但不得直接修改購物車、庫存或訂單資料。
+
+MVP 中 Cart/Order API 不直接 publish message。Domain transaction 同時寫入 business data 與 Outbox event，再由 publisher 非同步送至 queue，避免 database commit 與 message publish 的 dual-write inconsistency。
