@@ -1,5 +1,11 @@
 # Notification and Cart Recall
 
+## Purpose
+
+Cart Recall 的目的不是發送一般性的活動通知，而是針對已對特定商品展現明確購買意圖、但尚未完成下單的使用者，重新喚起其購買需求並引導回到購買流程。
+
+系統以使用者將商品加入購物車作為購買意圖訊號，並在發送前重新確認購物車、商品、庫存、訂單及 Campaign eligibility。僅在購買意圖仍有效且尚未完成相關商品訂單時發送通知，以促成使用者完成下單並提升高意圖使用者的 conversion rate，而非將 Cart Recall 作為廣泛觸達或一般 Campaign promotion 的管道。
+
 ## Notification Service
 
 Notification Service 負責「如何送達」，Journey Service 負責「為何、何時、送給誰」。Notification 不自行執行 Campaign matching。

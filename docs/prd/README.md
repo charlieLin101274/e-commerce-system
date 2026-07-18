@@ -13,7 +13,7 @@
 1. 營運人員建立活動，使用者查詢目前可參與的活動。
 2. 使用 Rule Engine 決定哪些使用者與商品符合 Campaign。
 3. 根據購物車與訂單事件建立 Notification Task 並安全送達。
-4. 對未完成購買者進行 Cart Recall。
+4. 對已展現特定商品購買意圖、但尚未完成下單的使用者進行 Cart Recall，重新喚起購買需求並促成轉換。
 5. 根據歷史訂單辨識回購機會，提供 Repurchase Journey。
 6. 追蹤活動曝光、點擊、訂單與 GMV attribution。
 
@@ -31,6 +31,7 @@
 ## Guiding Principles
 
 - Campaign 是商業活動，Rule 是活動資格，Trigger 是啟動評估的事件，Notification 是觸達結果。
+- Cart Recall 是針對具明確商品購買意圖使用者的 conversion journey，不是一般活動通知或廣泛行銷觸達。
 - Cart Abandonment 與 Repurchase 是不同 Journey，不應共用同一套狀態機。
 - 使用者看到的活動必須通過即時資格判斷，不能只依賴離線 audience snapshot。
 - Notification retry 必須具備 idempotency，不得重複觸達。
