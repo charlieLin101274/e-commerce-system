@@ -14,6 +14,7 @@ func NewProductAPI(s productservice.Service) *ProductAPI { return &ProductAPI{se
 type ProductRequest struct {
 	Name        string               `json:"name" binding:"required,max=200"`
 	Description string               `json:"description" binding:"max=5000"`
+	Category    string               `json:"category" binding:"max=100"`
 	Price       int64                `json:"price" binding:"gte=0"`
 	Stock       int64                `json:"stock" binding:"gte=0"`
 	Status      models.ProductStatus `json:"status" enums:"active,inactive"`
@@ -89,7 +90,7 @@ func (a *ProductAPI) Create(c *gin.Context) {
 		writeError(c, errorsInvalid())
 		return
 	}
-	v, err := a.service.Create(c.Request.Context(), productservice.CreateParam{Name: req.Name, Description: req.Description, Price: req.Price, Stock: req.Stock})
+	v, err := a.service.Create(c.Request.Context(), productservice.CreateParam{Name: req.Name, Description: req.Description, Category: req.Category, Price: req.Price, Stock: req.Stock})
 	if err != nil {
 		writeError(c, err)
 		return
@@ -117,7 +118,7 @@ func (a *ProductAPI) Update(c *gin.Context) {
 		writeError(c, errorsInvalid())
 		return
 	}
-	v, err := a.service.Update(c.Request.Context(), productservice.UpdateParam{ID: id, Name: req.Name, Description: req.Description, Price: req.Price, Stock: req.Stock, Status: req.Status})
+	v, err := a.service.Update(c.Request.Context(), productservice.UpdateParam{ID: id, Name: req.Name, Description: req.Description, Category: req.Category, Price: req.Price, Stock: req.Stock, Status: req.Status})
 	if err != nil {
 		writeError(c, err)
 		return

@@ -15,6 +15,277 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/admin/campaigns": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin Campaigns"
+                ],
+                "summary": "List campaigns for admin",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.Campaign"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin Campaigns"
+                ],
+                "summary": "Create draft campaign",
+                "parameters": [
+                    {
+                        "description": "Campaign",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/cmd_api_apis.CampaignRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.Campaign"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/campaigns/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin Campaigns"
+                ],
+                "summary": "Get campaign for admin",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Campaign ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Campaign"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin Campaigns"
+                ],
+                "summary": "Update draft campaign",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Campaign ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Campaign",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/cmd_api_apis.CampaignRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Campaign"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/campaigns/{id}/archive": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin Campaigns"
+                ],
+                "summary": "Archive campaign",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Campaign ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Campaign"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/campaigns/{id}/pause": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin Campaigns"
+                ],
+                "summary": "Pause campaign",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Campaign ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Campaign"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/campaigns/{id}/publish": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin Campaigns"
+                ],
+                "summary": "Publish draft campaign",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Campaign ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Campaign"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/campaigns/{id}/resume": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin Campaigns"
+                ],
+                "summary": "Resume paused campaign",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Campaign ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Campaign"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/products": {
             "post": {
                 "security": [
@@ -222,6 +493,70 @@ const docTemplate = `{
                         "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/github_com_linenxing_e-commerce-system_base_response.ErrorBody"
+                        }
+                    }
+                }
+            }
+        },
+        "/campaigns": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Campaigns"
+                ],
+                "summary": "List currently active campaigns",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Product ID used for scope matching",
+                        "name": "product_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.Campaign"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/campaigns/{id}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Campaigns"
+                ],
+                "summary": "Get currently active campaign",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Campaign ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Product ID used for scope matching",
+                        "name": "product_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Campaign"
                         }
                     }
                 }
@@ -571,6 +906,73 @@ const docTemplate = `{
                 }
             }
         },
+        "cmd_api_apis.CampaignRequest": {
+            "type": "object",
+            "required": [
+                "benefit_type",
+                "benefit_value",
+                "ends_at",
+                "name",
+                "promotion_title",
+                "starts_at"
+            ],
+            "properties": {
+                "benefit_type": {
+                    "enum": [
+                        "fixed_amount",
+                        "percentage"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.BenefitType"
+                        }
+                    ]
+                },
+                "benefit_value": {
+                    "type": "integer"
+                },
+                "categories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 5000
+                },
+                "ends_at": {
+                    "type": "string"
+                },
+                "maximum_discount_amount": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "priority": {
+                    "type": "integer"
+                },
+                "product_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "promotion_description": {
+                    "type": "string",
+                    "maxLength": 5000
+                },
+                "promotion_title": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "starts_at": {
+                    "type": "string"
+                }
+            }
+        },
         "cmd_api_apis.HealthResponse": {
             "type": "object",
             "properties": {
@@ -603,6 +1005,10 @@ const docTemplate = `{
                 "name"
             ],
             "properties": {
+                "category": {
+                    "type": "string",
+                    "maxLength": 100
+                },
                 "description": {
                     "type": "string",
                     "maxLength": 5000
@@ -727,6 +1133,101 @@ const docTemplate = `{
                 }
             }
         },
+        "models.BenefitType": {
+            "type": "string",
+            "enum": [
+                "fixed_amount",
+                "percentage"
+            ],
+            "x-enum-varnames": [
+                "BenefitTypeFixedAmount",
+                "BenefitTypePercentage"
+            ]
+        },
+        "models.Campaign": {
+            "type": "object",
+            "properties": {
+                "benefit_type": {
+                    "$ref": "#/definitions/models.BenefitType"
+                },
+                "benefit_value": {
+                    "type": "integer"
+                },
+                "categories": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "ends_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "maximum_discount_amount": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "priority": {
+                    "type": "integer"
+                },
+                "product_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "promotion_description": {
+                    "type": "string"
+                },
+                "promotion_title": {
+                    "type": "string"
+                },
+                "published_at": {
+                    "type": "string"
+                },
+                "starts_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/models.CampaignStatus"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.CampaignStatus": {
+            "type": "string",
+            "enum": [
+                "draft",
+                "scheduled",
+                "running",
+                "paused",
+                "ended",
+                "archived"
+            ],
+            "x-enum-varnames": [
+                "CampaignStatusDraft",
+                "CampaignStatusScheduled",
+                "CampaignStatusRunning",
+                "CampaignStatusPaused",
+                "CampaignStatusEnded",
+                "CampaignStatusArchived"
+            ]
+        },
         "models.CartItemResp": {
             "type": "object",
             "properties": {
@@ -816,6 +1317,10 @@ const docTemplate = `{
         "models.ProductResp": {
             "type": "object",
             "properties": {
+                "category": {
+                    "type": "string",
+                    "example": "electronics"
+                },
                 "created_at": {
                     "type": "string"
                 },

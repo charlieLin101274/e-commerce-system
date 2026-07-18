@@ -43,8 +43,15 @@ MVP 範圍為 Stage 0 至 Stage 4。Stage 5 與 Stage 6 明確列為 post-MVP，
 
 - Admin 可建立 Draft Campaign 並發布。
 - 未開始、已結束、Paused、Archived 活動不出現在 public API。
-- 使用者查詢只會看到通過 Rule Engine 的活動。
+- 使用者查詢只會看到通過 lifecycle 與 Product ID/Category scope 比對的活動；Rule Engine eligibility 於 Stage 2 加入。
 - 同一時間查詢結果依 priority 與 Campaign ID deterministic 排序。
+
+### Stage 1 Decisions
+
+- Public List/Detail 接受 optional `product_id`。未提供時為 browse mode，回傳所有 Running Campaign；提供時只回傳符合 Product ID 或 canonical Category scope 的 Campaign。
+- Stage 1 response contract 預留 Stage 2 eligibility filtering。Stage 2 只會進一步縮小結果集，不改變既有 Campaign response schema。
+- `POST /campaigns/:id/evaluate`、rule versioning 與 member/product/cart Rule Engine eligibility 屬於 Stage 2。
+- Archive 是 soft delete。Draft 可直接 Archive，已發布 Campaign 則需先 Paused 或 Ended。
 
 ## Stage 2 — Rule Engine (MVP Simplified)
 

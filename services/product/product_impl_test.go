@@ -15,7 +15,7 @@ import (
 type fakeStore struct{ products map[uuid.UUID]models.Product }
 
 func (s *fakeStore) Create(_ context.Context, p productstore.CreateParam) (models.Product, error) {
-	v := models.Product{ID: uuid.New(), Name: p.Name, Description: p.Description, Price: p.Price, Stock: p.Stock, Status: p.Status, CreatedAt: time.Now(), UpdatedAt: time.Now()}
+	v := models.Product{ID: uuid.New(), Name: p.Name, Description: p.Description, Category: p.Category, Price: p.Price, Stock: p.Stock, Status: p.Status, CreatedAt: time.Now(), UpdatedAt: time.Now()}
 	s.products[v.ID] = v
 	return v, nil
 }
@@ -24,7 +24,7 @@ func (s *fakeStore) Update(_ context.Context, p productstore.UpdateParam) (model
 	if !ok {
 		return models.Product{}, productstore.ErrNotFound
 	}
-	v.Name, v.Description, v.Price, v.Stock, v.Status = p.Name, p.Description, p.Price, p.Stock, p.Status
+	v.Name, v.Description, v.Category, v.Price, v.Stock, v.Status = p.Name, p.Description, p.Category, p.Price, p.Stock, p.Status
 	s.products[v.ID] = v
 	return v, nil
 }
@@ -48,11 +48,11 @@ func (s *fakeStore) DecreaseStock(context.Context, uuid.UUID, int64) error { ret
 
 func TestCreateProduct(t *testing.T) {
 	s := &fakeStore{products: map[uuid.UUID]models.Product{}}
-	got, err := New(s).Create(context.Background(), CreateParam{Name: " Product ", Price: 100, Stock: 2})
+	got, err := New(s).Create(context.Background(), CreateParam{Name: " Product ", Category: " Electronics ", Price: 100, Stock: 2})
 	if err != nil {
 		t.Fatalf("create product: %v", err)
 	}
-	if got.Name != "Product" || got.Status != models.ProductStatusActive {
+	if got.Name != "Product" || got.Category != "electronics" || got.Status != models.ProductStatusActive {
 		t.Fatalf("unexpected product: %+v", got)
 	}
 }

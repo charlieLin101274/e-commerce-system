@@ -7,14 +7,14 @@ import (
 )
 
 type CreateParam struct {
-	Name, Description string
-	Price, Stock      int64
+	Name, Description, Category string
+	Price, Stock                int64
 }
 type UpdateParam struct {
-	ID                uuid.UUID
-	Name, Description string
-	Price, Stock      int64
-	Status            models.ProductStatus
+	ID                          uuid.UUID
+	Name, Description, Category string
+	Price, Stock                int64
+	Status                      models.ProductStatus
 }
 type Service interface {
 	Create(context.Context, CreateParam) (models.ProductResp, error)

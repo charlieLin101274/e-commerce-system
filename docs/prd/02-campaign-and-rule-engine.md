@@ -9,17 +9,26 @@ Checkout 仍是最終價格、庫存與 promotion eligibility 的 source of trut
 ## Campaign Lifecycle
 
 ```text
-Draft → Scheduled → Running → Paused → Ended → Archived
+Draft ────────────────→ Archived
+  │
+  ▼
+Scheduled ⇄ Paused
+  │           ▲
+  ▼           │
+Running ──────┘
+  │
+  ▼
+Ended ────────────────→ Archived
 ```
 
 - Draft：可編輯，不公開。
 - Scheduled：已發布，尚未到開始時間。
 - Running：有效且可被查詢及匹配。
-- Paused：暫停曝光與新 trigger matching。
+- Paused：暫停曝光與新 trigger matching；可 Resume，並依當下時間恢復為 Scheduled 或 Running。
 - Ended：超過結束時間。
 - Archived：僅供稽核查詢。
 
-狀態不得只靠 background job 更新；查詢時仍須以 `starts_at <= now < ends_at` 驗證。
+所有已發布狀態（包含 Paused）都受 `ends_at` 約束；當 `now >= ends_at` 時 effective status 為 Ended。狀態不得只靠 background job 更新；查詢時仍須以 `starts_at <= now < ends_at` 驗證。
 
 ## Campaign Data
 
@@ -47,6 +56,8 @@ published_at
 
 商品適用範圍以 `campaign_products` 與 Product Category 定義。Brand scope 列為 post-MVP。
 
+Product Category 使用 canonical lowercase string：寫入 Product 與 Campaign scope 前必須先 TrimSpace 並轉為 lowercase，比對採 exact match。
+
 ## APIs
 
 ### Customer
@@ -69,6 +80,7 @@ GET    /admin/campaigns/:id
 PUT    /admin/campaigns/:id
 POST   /admin/campaigns/:id/publish
 POST   /admin/campaigns/:id/pause
+POST   /admin/campaigns/:id/resume
 POST   /admin/campaigns/:id/archive
 POST   /admin/campaigns/:id/rules/validate
 POST   /admin/campaigns/:id/rules/evaluate
@@ -122,7 +134,7 @@ Rule 使用 declarative JSON 儲存，不允許營運人員提交 SQL 或 expres
 
 `eligibility_rule` 由 Rule Engine 評估，`benefit` 由 Benefit Calculator 計算，兩者為同一 Campaign configuration 中彼此獨立的定義。
 
-金額一律使用最小貨幣單位的 integer。以上範例代表價格高於 5,000、折扣 10%，且折扣上限為 500。Currency、percentage precision 與 rounding mode 必須由系統設定統一決定，不使用 floating point 計算。
+金額一律使用最小貨幣單位的 integer。以上範例代表價格高於 5,000、折扣 10%，且折扣上限為 500。MVP percentage precision 為整數百分比，rounding mode 為向下取整（floor），不使用 floating point 計算。Campaign preview、Notification 與 Checkout 必須直接共用同一個 Benefit Calculator，不得各自重作 rounding logic。
 
 ## Supported Facts
 

@@ -17,14 +17,14 @@ func (s *service) Create(ctx context.Context, p CreateParam) (models.ProductResp
 	if strings.TrimSpace(p.Name) == "" || p.Price < 0 || p.Stock < 0 {
 		return models.ProductResp{}, apperror.ErrInvalidInput
 	}
-	v, err := s.store.Create(ctx, productstore.CreateParam{Name: strings.TrimSpace(p.Name), Description: strings.TrimSpace(p.Description), Price: p.Price, Stock: p.Stock, Status: models.ProductStatusActive})
+	v, err := s.store.Create(ctx, productstore.CreateParam{Name: strings.TrimSpace(p.Name), Description: strings.TrimSpace(p.Description), Category: normalizeCategory(p.Category), Price: p.Price, Stock: p.Stock, Status: models.ProductStatusActive})
 	return toResp(v), err
 }
 func (s *service) Update(ctx context.Context, p UpdateParam) (models.ProductResp, error) {
 	if strings.TrimSpace(p.Name) == "" || p.Price < 0 || p.Stock < 0 || (p.Status != models.ProductStatusActive && p.Status != models.ProductStatusInactive) {
 		return models.ProductResp{}, apperror.ErrInvalidInput
 	}
-	v, err := s.store.Update(ctx, productstore.UpdateParam{ID: p.ID, Name: strings.TrimSpace(p.Name), Description: strings.TrimSpace(p.Description), Price: p.Price, Stock: p.Stock, Status: p.Status})
+	v, err := s.store.Update(ctx, productstore.UpdateParam{ID: p.ID, Name: strings.TrimSpace(p.Name), Description: strings.TrimSpace(p.Description), Category: normalizeCategory(p.Category), Price: p.Price, Stock: p.Stock, Status: p.Status})
 	if errors.Is(err, productstore.ErrNotFound) {
 		return models.ProductResp{}, apperror.ErrNotFound
 	}
@@ -38,7 +38,7 @@ func (s *service) Disable(ctx context.Context, id uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	_, err = s.store.Update(ctx, productstore.UpdateParam{ID: id, Name: v.Name, Description: v.Description, Price: v.Price, Stock: v.Stock, Status: models.ProductStatusInactive})
+	_, err = s.store.Update(ctx, productstore.UpdateParam{ID: id, Name: v.Name, Description: v.Description, Category: v.Category, Price: v.Price, Stock: v.Stock, Status: models.ProductStatusInactive})
 	return err
 }
 func (s *service) List(ctx context.Context, admin bool) ([]models.ProductResp, error) {
@@ -60,5 +60,9 @@ func (s *service) Get(ctx context.Context, id uuid.UUID, admin bool) (models.Pro
 	return toResp(v), err
 }
 func toResp(v models.Product) models.ProductResp {
-	return models.ProductResp{ID: v.ID, Name: v.Name, Description: v.Description, Price: v.Price, Stock: v.Stock, Status: v.Status, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt}
+	return models.ProductResp{ID: v.ID, Name: v.Name, Description: v.Description, Category: v.Category, Price: v.Price, Stock: v.Stock, Status: v.Status, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt}
+}
+
+func normalizeCategory(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
 }

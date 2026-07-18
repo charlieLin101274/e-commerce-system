@@ -17,6 +17,7 @@ type Product struct {
 	ID          uuid.UUID     `db:"id"`
 	Name        string        `db:"name"`
 	Description string        `db:"description"`
+	Category    string        `db:"category"`
 	Price       int64         `db:"price"`
 	Stock       int64         `db:"stock"`
 	Status      ProductStatus `db:"status"`
@@ -28,6 +29,7 @@ type ProductResp struct {
 	ID          uuid.UUID     `json:"id" format:"uuid"`
 	Name        string        `json:"name"`
 	Description string        `json:"description"`
+	Category    string        `json:"category" example:"electronics"`
 	Price       int64         `json:"price" example:"1000"`
 	Stock       int64         `json:"stock" example:"10"`
 	Status      ProductStatus `json:"status" enums:"active,inactive"`

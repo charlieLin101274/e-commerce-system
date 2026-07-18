@@ -16,19 +16,19 @@ type PostgresStore struct{ db basepostgres.DBTX }
 func NewPostgresStore(db basepostgres.DBTX) *PostgresStore { return &PostgresStore{db: db} }
 
 func (s *PostgresStore) Create(ctx context.Context, p CreateParam) (models.Product, error) {
-	const q = `INSERT INTO products (name,description,price,stock,status) VALUES ($1,$2,$3,$4,$5) RETURNING id,name,description,price,stock,status,created_at,updated_at`
-	return scan(s.db.QueryRow(ctx, q, p.Name, p.Description, p.Price, p.Stock, p.Status))
+	const q = `INSERT INTO products (name,description,category,price,stock,status) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id,name,description,category,price,stock,status,created_at,updated_at`
+	return scan(s.db.QueryRow(ctx, q, p.Name, p.Description, p.Category, p.Price, p.Stock, p.Status))
 }
 func (s *PostgresStore) Update(ctx context.Context, p UpdateParam) (models.Product, error) {
-	const q = `UPDATE products SET name=$2,description=$3,price=$4,stock=$5,status=$6,updated_at=NOW() WHERE id=$1 RETURNING id,name,description,price,stock,status,created_at,updated_at`
-	v, err := scan(s.db.QueryRow(ctx, q, p.ID, p.Name, p.Description, p.Price, p.Stock, p.Status))
+	const q = `UPDATE products SET name=$2,description=$3,category=$4,price=$5,stock=$6,status=$7,updated_at=NOW() WHERE id=$1 RETURNING id,name,description,category,price,stock,status,created_at,updated_at`
+	v, err := scan(s.db.QueryRow(ctx, q, p.ID, p.Name, p.Description, p.Category, p.Price, p.Stock, p.Status))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return models.Product{}, ErrNotFound
 	}
 	return v, err
 }
 func (s *PostgresStore) GetByID(ctx context.Context, id uuid.UUID, lock bool) (models.Product, error) {
-	q := `SELECT id,name,description,price,stock,status,created_at,updated_at FROM products WHERE id=$1`
+	q := `SELECT id,name,description,category,price,stock,status,created_at,updated_at FROM products WHERE id=$1`
 	if lock {
 		q += ` FOR UPDATE`
 	}
@@ -39,7 +39,7 @@ func (s *PostgresStore) GetByID(ctx context.Context, id uuid.UUID, lock bool) (m
 	return v, err
 }
 func (s *PostgresStore) List(ctx context.Context, includeInactive bool) ([]models.Product, error) {
-	q := `SELECT id,name,description,price,stock,status,created_at,updated_at FROM products`
+	q := `SELECT id,name,description,category,price,stock,status,created_at,updated_at FROM products`
 	if !includeInactive {
 		q += ` WHERE status='active'`
 	}
@@ -74,6 +74,6 @@ type scanner interface{ Scan(...any) error }
 
 func scan(r scanner) (models.Product, error) {
 	var v models.Product
-	err := r.Scan(&v.ID, &v.Name, &v.Description, &v.Price, &v.Stock, &v.Status, &v.CreatedAt, &v.UpdatedAt)
+	err := r.Scan(&v.ID, &v.Name, &v.Description, &v.Category, &v.Price, &v.Stock, &v.Status, &v.CreatedAt, &v.UpdatedAt)
 	return v, err
 }

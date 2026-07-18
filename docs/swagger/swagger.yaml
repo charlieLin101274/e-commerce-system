@@ -10,6 +10,52 @@ definitions:
     - product_id
     - quantity
     type: object
+  cmd_api_apis.CampaignRequest:
+    properties:
+      benefit_type:
+        allOf:
+        - $ref: '#/definitions/models.BenefitType'
+        enum:
+        - fixed_amount
+        - percentage
+      benefit_value:
+        type: integer
+      categories:
+        items:
+          type: string
+        type: array
+      description:
+        maxLength: 5000
+        type: string
+      ends_at:
+        type: string
+      maximum_discount_amount:
+        type: integer
+      name:
+        maxLength: 200
+        type: string
+      priority:
+        type: integer
+      product_ids:
+        items:
+          type: string
+        type: array
+      promotion_description:
+        maxLength: 5000
+        type: string
+      promotion_title:
+        maxLength: 200
+        type: string
+      starts_at:
+        type: string
+    required:
+    - benefit_type
+    - benefit_value
+    - ends_at
+    - name
+    - promotion_title
+    - starts_at
+    type: object
   cmd_api_apis.HealthResponse:
     properties:
       status:
@@ -30,6 +76,9 @@ definitions:
     type: object
   cmd_api_apis.ProductRequest:
     properties:
+      category:
+        maxLength: 100
+        type: string
       description:
         maxLength: 5000
         type: string
@@ -116,6 +165,73 @@ definitions:
       user:
         $ref: '#/definitions/models.UserResp'
     type: object
+  models.BenefitType:
+    enum:
+    - fixed_amount
+    - percentage
+    type: string
+    x-enum-varnames:
+    - BenefitTypeFixedAmount
+    - BenefitTypePercentage
+  models.Campaign:
+    properties:
+      benefit_type:
+        $ref: '#/definitions/models.BenefitType'
+      benefit_value:
+        type: integer
+      categories:
+        items:
+          type: string
+        type: array
+      created_at:
+        type: string
+      created_by:
+        type: string
+      description:
+        type: string
+      ends_at:
+        type: string
+      id:
+        type: string
+      maximum_discount_amount:
+        type: integer
+      name:
+        type: string
+      priority:
+        type: integer
+      product_ids:
+        items:
+          type: string
+        type: array
+      promotion_description:
+        type: string
+      promotion_title:
+        type: string
+      published_at:
+        type: string
+      starts_at:
+        type: string
+      status:
+        $ref: '#/definitions/models.CampaignStatus'
+      updated_at:
+        type: string
+    type: object
+  models.CampaignStatus:
+    enum:
+    - draft
+    - scheduled
+    - running
+    - paused
+    - ended
+    - archived
+    type: string
+    x-enum-varnames:
+    - CampaignStatusDraft
+    - CampaignStatusScheduled
+    - CampaignStatusRunning
+    - CampaignStatusPaused
+    - CampaignStatusEnded
+    - CampaignStatusArchived
   models.CartItemResp:
     properties:
       id:
@@ -174,6 +290,9 @@ definitions:
     - OrderStatusCompleted
   models.ProductResp:
     properties:
+      category:
+        example: electronics
+        type: string
       created_at:
         type: string
       description:
@@ -241,6 +360,171 @@ info:
   title: Simple E-Commerce API
   version: "1.0"
 paths:
+  /admin/campaigns:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Campaign'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: List campaigns for admin
+      tags:
+      - Admin Campaigns
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Campaign
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/cmd_api_apis.CampaignRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Campaign'
+      security:
+      - BearerAuth: []
+      summary: Create draft campaign
+      tags:
+      - Admin Campaigns
+  /admin/campaigns/{id}:
+    get:
+      parameters:
+      - description: Campaign ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Campaign'
+      security:
+      - BearerAuth: []
+      summary: Get campaign for admin
+      tags:
+      - Admin Campaigns
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Campaign ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Campaign
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/cmd_api_apis.CampaignRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Campaign'
+      security:
+      - BearerAuth: []
+      summary: Update draft campaign
+      tags:
+      - Admin Campaigns
+  /admin/campaigns/{id}/archive:
+    post:
+      parameters:
+      - description: Campaign ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Campaign'
+      security:
+      - BearerAuth: []
+      summary: Archive campaign
+      tags:
+      - Admin Campaigns
+  /admin/campaigns/{id}/pause:
+    post:
+      parameters:
+      - description: Campaign ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Campaign'
+      security:
+      - BearerAuth: []
+      summary: Pause campaign
+      tags:
+      - Admin Campaigns
+  /admin/campaigns/{id}/publish:
+    post:
+      parameters:
+      - description: Campaign ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Campaign'
+      security:
+      - BearerAuth: []
+      summary: Publish draft campaign
+      tags:
+      - Admin Campaigns
+  /admin/campaigns/{id}/resume:
+    post:
+      parameters:
+      - description: Campaign ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Campaign'
+      security:
+      - BearerAuth: []
+      summary: Resume paused campaign
+      tags:
+      - Admin Campaigns
   /admin/products:
     post:
       consumes:
@@ -375,6 +659,47 @@ paths:
       summary: Register customer
       tags:
       - Authentication
+  /campaigns:
+    get:
+      parameters:
+      - description: Product ID used for scope matching
+        in: query
+        name: product_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Campaign'
+            type: array
+      summary: List currently active campaigns
+      tags:
+      - Campaigns
+  /campaigns/{id}:
+    get:
+      parameters:
+      - description: Campaign ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Product ID used for scope matching
+        in: query
+        name: product_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Campaign'
+      summary: Get currently active campaign
+      tags:
+      - Campaigns
   /cart:
     get:
       produces:
