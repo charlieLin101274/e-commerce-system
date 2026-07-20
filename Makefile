@@ -1,4 +1,4 @@
-.PHONY: up down test fmt swagger
+.PHONY: up down test fmt swagger integration-up integration-down integration-test
 
 up:
 	docker compose up --build
@@ -18,3 +18,21 @@ swagger:
 		-o docs/swagger \
 		--parseDependency \
 		--parseInternal
+
+integration-up:
+	docker compose -p ecommerce-integration \
+		-f docker-compose.yaml \
+		-f integration-tests/compose.override.yaml \
+		up -d --build
+
+integration-down:
+	docker compose -p ecommerce-integration \
+		-f docker-compose.yaml \
+		-f integration-tests/compose.override.yaml \
+		down -v --remove-orphans
+
+integration-test: integration-up
+	@status=0; \
+	go test -tags=integration ./integration-tests/suites/... || status=$$?; \
+	$(MAKE) integration-down; \
+	exit $$status

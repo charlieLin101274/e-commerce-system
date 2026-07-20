@@ -1,0 +1,22 @@
+services:
+  postgres:
+    ports: !override
+      - "15432:5432"
+
+  api:
+    environment:
+      APP_ENV: integration
+      APP_LOG_LEVEL: info
+    ports: !override
+      - "18080:8080"
+
+  notification-worker:
+    environment:
+      APP_ENV: integration
+      APP_LOG_LEVEL: info
+
+  cart-recall-worker:
+    environment:
+      APP_ENV: integration
+      APP_LOG_LEVEL: info
+      APP_CART_RECALL_DELAY: 1s

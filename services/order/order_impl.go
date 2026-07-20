@@ -68,7 +68,7 @@ func (s *service) Create(ctx context.Context, userID uuid.UUID) (models.OrderRes
 		productIDs = append(productIDs, item.ProductID)
 	}
 	if _, err = tx.Exec(ctx, `INSERT INTO domain_outbox(event_type,aggregate_id,payload) VALUES(
-		'order.completed',$1,jsonb_build_object('order_id',$1,'user_id',$2,'cart_id',$3,'product_ids',$4::uuid[])
+		'order.completed',$1::uuid,jsonb_build_object('order_id',$1::uuid,'user_id',$2::uuid,'cart_id',$3::uuid,'product_ids',$4::uuid[])
 	)`, created.ID, userID, cart.ID, productIDs); err != nil {
 		return models.OrderResp{}, fmt.Errorf("create order completed outbox event: %w", err)
 	}
