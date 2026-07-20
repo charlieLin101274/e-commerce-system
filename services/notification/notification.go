@@ -2,10 +2,17 @@ package notification
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/linenxing/e-commerce-system/models"
+)
+
+var (
+	ErrConsentDisabled  = errors.New("marketing consent disabled")
+	ErrChannelDisabled  = errors.New("notification channel disabled")
+	ErrFrequencyLimited = errors.New("notification frequency limited")
 )
 
 type CreateTaskParam struct {

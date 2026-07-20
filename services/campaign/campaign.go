@@ -39,4 +39,5 @@ type Service interface {
 	EvaluatePublic(context.Context, uuid.UUID, *uuid.UUID, *uuid.UUID) (models.EvaluationResult, error)
 	ValidateRules(context.Context, uuid.UUID) ([]string, error)
 	EvaluateRules(context.Context, uuid.UUID, models.EvaluationContextType, models.EvaluationFacts) (models.EvaluationResult, error)
+	MatchCartRecall(context.Context, models.EvaluationFacts) (models.Campaign, models.EvaluationResult, error)
 }

@@ -269,9 +269,13 @@ func mapStoreError(err error) error {
 		return nil
 	case errors.Is(err, notificationstore.ErrNotFound):
 		return apperror.ErrNotFound
-	case errors.Is(err, notificationstore.ErrConsentDisabled), errors.Is(err, notificationstore.ErrChannelDisabled):
-		return apperror.ErrForbidden
-	case errors.Is(err, notificationstore.ErrFrequencyLimited), errors.Is(err, notificationstore.ErrConflict):
+	case errors.Is(err, notificationstore.ErrConsentDisabled):
+		return errors.Join(apperror.ErrForbidden, ErrConsentDisabled)
+	case errors.Is(err, notificationstore.ErrChannelDisabled):
+		return errors.Join(apperror.ErrForbidden, ErrChannelDisabled)
+	case errors.Is(err, notificationstore.ErrFrequencyLimited):
+		return errors.Join(apperror.ErrConflict, ErrFrequencyLimited)
+	case errors.Is(err, notificationstore.ErrConflict):
 		return apperror.ErrConflict
 	default:
 		return err

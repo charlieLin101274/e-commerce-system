@@ -365,6 +365,96 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/cart-recall-journeys": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin Cart Recall"
+                ],
+                "summary": "List cart recall journeys",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.CartRecallJourney"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/cart-recall-journeys/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin Cart Recall"
+                ],
+                "summary": "Get cart recall journey",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Journey ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.CartRecallJourney"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/cart-recall-journeys/{id}/cancel": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin Cart Recall"
+                ],
+                "summary": "Cancel cart recall journey",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Journey ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/admin/products": {
             "post": {
                 "security": [
@@ -1495,6 +1585,83 @@ const docTemplate = `{
                     "type": "integer"
                 }
             }
+        },
+        "models.CartRecallJourney": {
+            "type": "object",
+            "properties": {
+                "campaign_id": {
+                    "type": "string"
+                },
+                "cancel_reason": {
+                    "type": "string"
+                },
+                "cart_id": {
+                    "type": "string"
+                },
+                "converted_order_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "evaluate_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "matched_product_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "matched_products_snapshot": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "notification_task_id": {
+                    "type": "string"
+                },
+                "rule_version": {
+                    "type": "integer"
+                },
+                "source_event_id": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/models.CartRecallStatus"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.CartRecallStatus": {
+            "type": "string",
+            "enum": [
+                "scheduled",
+                "evaluating",
+                "notification_pending",
+                "sent",
+                "converted",
+                "skipped",
+                "cancelled"
+            ],
+            "x-enum-varnames": [
+                "CartRecallScheduled",
+                "CartRecallEvaluating",
+                "CartRecallNotificationPending",
+                "CartRecallSent",
+                "CartRecallConverted",
+                "CartRecallSkipped",
+                "CartRecallCancelled"
+            ]
         },
         "models.CartResp": {
             "type": "object",

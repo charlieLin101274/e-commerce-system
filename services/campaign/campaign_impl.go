@@ -292,6 +292,38 @@ func (s *service) EvaluateRules(ctx context.Context, id uuid.UUID, contextType m
 	return s.evaluate(ctx, value, contextType, facts, true, false)
 }
 
+// MatchCartRecall evaluates running cart-recall campaigns in deterministic rank order.
+func (s *service) MatchCartRecall(ctx context.Context, facts models.EvaluationFacts) (models.Campaign, models.EvaluationResult, error) {
+	if facts.Member == nil || facts.Product == nil || facts.Cart == nil {
+		return models.Campaign{}, models.EvaluationResult{}, apperror.ErrInvalidInput
+	}
+	facts.Product.Category = normalizeCategory(facts.Product.Category)
+	items, err := s.store.List(ctx)
+	if err != nil {
+		return models.Campaign{}, models.EvaluationResult{}, err
+	}
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].Priority != items[j].Priority {
+			return items[i].Priority > items[j].Priority
+		}
+		return items[i].ID.String() < items[j].ID.String()
+	})
+	for _, value := range items {
+		if effectiveStatus(value, s.now()) != models.CampaignStatusRunning || value.RuleContextType != models.EvaluationContextCartRecall || !matchesScope(value, &facts.Product.ID, facts.Product.Category) {
+			continue
+		}
+		decision, evaluationErr := s.evaluate(ctx, value, models.EvaluationContextCartRecall, facts, true, true)
+		if evaluationErr != nil {
+			return models.Campaign{}, models.EvaluationResult{}, evaluationErr
+		}
+		if decision.Eligible {
+			value.Status = models.CampaignStatusRunning
+			return value, decision, nil
+		}
+	}
+	return models.Campaign{}, models.EvaluationResult{}, apperror.ErrNotFound
+}
+
 func (s *service) discoveryFacts(ctx context.Context, productID, userID *uuid.UUID) (models.EvaluationFacts, error) {
 	var facts models.EvaluationFacts
 	if productID != nil {

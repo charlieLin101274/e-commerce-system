@@ -62,5 +62,21 @@ services:
       migration:
         condition: service_completed_successfully
 
+  cart-recall-worker:
+    build:
+      context: .
+      dockerfile: infra/api/Dockerfile
+    entrypoint: ["/cart-recall-worker"]
+    environment:
+      APP_ENV: development
+      APP_DATABASE_URL: postgres://ecommerce:ecommerce@postgres:5432/ecommerce?sslmode=disable
+      APP_DATABASE_MAX_CONNECTIONS: 10
+      APP_JWT_SECRET: local-development-secret-at-least-32-characters
+      APP_LOG_LEVEL: debug
+      APP_CART_RECALL_DELAY: 30m
+    depends_on:
+      migration:
+        condition: service_completed_successfully
+
 volumes:
   postgres-data:

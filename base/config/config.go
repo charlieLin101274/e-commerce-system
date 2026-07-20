@@ -16,6 +16,7 @@ type Config struct {
 	Database    DatabaseConfig
 	JWT         JWTConfig
 	Log         LogConfig
+	CartRecall  CartRecallConfig
 }
 
 type HTTPConfig struct {
@@ -35,6 +36,10 @@ type JWTConfig struct {
 
 type LogConfig struct {
 	Level string `env:"APP_LOG_LEVEL" envDefault:"info"`
+}
+
+type CartRecallConfig struct {
+	Delay time.Duration `env:"APP_CART_RECALL_DELAY" envDefault:"30m"`
 }
 
 func Load() (Config, error) {
@@ -62,6 +67,9 @@ func (c Config) Validate() error {
 	}
 	if c.JWT.Expiration <= 0 {
 		return errors.New("APP_JWT_EXPIRATION must be greater than zero")
+	}
+	if c.CartRecall.Delay <= 0 {
+		return errors.New("APP_CART_RECALL_DELAY must be greater than zero")
 	}
 	return nil
 }

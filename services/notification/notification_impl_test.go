@@ -87,6 +87,22 @@ func TestCreateTaskBuildsDeterministicIdempotencyKeyAndEscapesVariables(t *testi
 	}
 }
 
+func TestMapStoreErrorPreservesNotificationDomainReason(t *testing.T) {
+	tests := []struct {
+		storeErr  error
+		domainErr error
+	}{
+		{notificationstore.ErrConsentDisabled, ErrConsentDisabled},
+		{notificationstore.ErrChannelDisabled, ErrChannelDisabled},
+		{notificationstore.ErrFrequencyLimited, ErrFrequencyLimited},
+	}
+	for _, test := range tests {
+		if err := mapStoreError(test.storeErr); !errors.Is(err, test.domainErr) {
+			t.Fatalf("error=%v does not preserve %v", err, test.domainErr)
+		}
+	}
+}
+
 func TestWorkerRetriesTemporaryFailure(t *testing.T) {
 	task := models.NotificationTask{ID: uuid.New(), Channel: models.NotificationChannelPush, AttemptCount: 1, Payload: []byte(`{"title":"title","body":"body"}`)}
 	store := &fakeStore{tasks: []models.NotificationTask{task}}

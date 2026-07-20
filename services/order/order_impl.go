@@ -63,6 +63,15 @@ func (s *service) Create(ctx context.Context, userID uuid.UUID) (models.OrderRes
 	if err = cStore.Clear(ctx, cart.ID); err != nil {
 		return models.OrderResp{}, err
 	}
+	productIDs := make([]uuid.UUID, 0, len(params))
+	for _, item := range params {
+		productIDs = append(productIDs, item.ProductID)
+	}
+	if _, err = tx.Exec(ctx, `INSERT INTO domain_outbox(event_type,aggregate_id,payload) VALUES(
+		'order.completed',$1,jsonb_build_object('order_id',$1,'user_id',$2,'cart_id',$3,'product_ids',$4::uuid[])
+	)`, created.ID, userID, cart.ID, productIDs); err != nil {
+		return models.OrderResp{}, fmt.Errorf("create order completed outbox event: %w", err)
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return models.OrderResp{}, fmt.Errorf("commit order: %w", err)
 	}

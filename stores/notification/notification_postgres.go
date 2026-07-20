@@ -127,7 +127,19 @@ func (s *PostgresStore) ClaimTasks(ctx context.Context, now time.Time, processin
 		return nil, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	query := `WITH candidates AS (SELECT id FROM notification_tasks WHERE ((status IN ('pending','retry_scheduled') AND next_attempt_at <= $1 AND scheduled_at <= $1) OR (status='processing' AND processing_started_at <= $2)) ORDER BY next_attempt_at,id FOR UPDATE SKIP LOCKED LIMIT $3) UPDATE notification_tasks n SET status='processing',processing_started_at=$1,attempt_count=n.attempt_count+1,updated_at=$1 FROM candidates c WHERE n.id=c.id RETURNING n.id,n.user_id,n.campaign_id,n.journey_type,n.journey_id,n.template_id,n.template_version,n.channel,n.status,n.idempotency_key,n.scheduled_at,n.attempt_count,n.next_attempt_at,n.sent_at,n.opened_at,COALESCE(n.failure_code,''),n.payload,n.created_at,n.updated_at`
+	query := `WITH candidates AS (
+		SELECT n.id FROM notification_tasks n
+		WHERE (((n.status IN ('pending','retry_scheduled') AND n.next_attempt_at <= $1 AND n.scheduled_at <= $1) OR (n.status='processing' AND n.processing_started_at <= $2)))
+		AND (n.journey_type <> 'cart_recall' OR EXISTS (
+			SELECT 1 FROM cart_recall_journeys j JOIN campaigns c ON c.id=j.campaign_id
+			WHERE j.id=n.journey_id AND j.notification_task_id=n.id AND j.status='notification_pending'
+			AND c.status IN ('scheduled','running') AND c.starts_at <= $1 AND c.ends_at > $1
+			AND EXISTS (SELECT 1 FROM cart_items ci JOIN products p ON p.id=ci.product_id
+				WHERE ci.cart_id=j.cart_id AND ci.product_id=ANY(j.matched_product_ids)
+				AND p.status='active' AND p.stock >= ci.quantity)
+		))
+		ORDER BY n.next_attempt_at,n.id FOR UPDATE OF n SKIP LOCKED LIMIT $3
+	) UPDATE notification_tasks n SET status='processing',processing_started_at=$1,attempt_count=n.attempt_count+1,updated_at=$1 FROM candidates c WHERE n.id=c.id RETURNING n.id,n.user_id,n.campaign_id,n.journey_type,n.journey_id,n.template_id,n.template_version,n.channel,n.status,n.idempotency_key,n.scheduled_at,n.attempt_count,n.next_attempt_at,n.sent_at,n.opened_at,COALESCE(n.failure_code,''),n.payload,n.created_at,n.updated_at`
 	rows, err := tx.Query(ctx, query, now, now.Add(-processingTimeout), limit)
 	if err != nil {
 		return nil, err
