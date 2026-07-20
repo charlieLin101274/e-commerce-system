@@ -193,6 +193,21 @@ Promotion stacking、Buy X Get Y、tiered discount、coupon、跨商品組合與
 - Trigger 與 notification task 保存 evaluate 時使用的 version。
 - Revalidation 使用當下 active version，並記錄版本變更造成的排除。
 
+## Stage 2 Implementation Decisions
+
+- MVP 不另設 rule write API；Admin 透過 Campaign Create/Update request 寫入 `context_type` 與 `eligibility_rule`。`rules/validate` 與 `rules/evaluate` 分別維持 validation 與 dry-run responsibility。
+- Campaign 只有 Draft 可由既有 Update API 編輯。資料層已保存 immutable rule versions 與 active version，但「已發布 Campaign 切換至新 rule version」尚無公開 Admin endpoint；此能力在營運需要修改已發布規則前另行補充，不屬 Stage 2 MVP 驗收阻擋項目。
+- Draft 每次明確帶入 `eligibility_rule` 的 Update 都建立新 version，即使 JSON 與前一版相同。MVP 優先保留完整修改軌跡，不進行 semantic deduplication。
+- `member_level` 與 `member_tags` 僅作為必要 Member facts 保存及讀取，不在 Stage 2 建立 audience engine 或會員標籤維護 API。
+- Cart Recall 的 member、cart 與 matched product facts 由 Stage 4 journey 組裝；Stage 2 僅提供相同 evaluator、context validation 與 Admin dry-run contract。
+- Browse mode 未提供 `product_id` 時不合成 product facts。依 missing fact 規則，引用 `product.*` 的 condition 為 `false`；此類 Campaign 不出現在 browse 結果。若產品需求改為 browse 僅套用 Member rule，需另行修改 contract，不在 evaluator 中隱含跳過 Product condition。
+- Product Category condition value 與 Product fact 都 canonicalize 為 TrimSpace 後的 lowercase；`eq` 與 `in` 仍採 exact match。
+- `member.tags` 在 MVP 僅支援 `contains`。不接受可通過 validation 但 evaluator 無明確語意的 array `eq` 或 `in`。
+- Customer List/Detail/Evaluate 的 decision log 採 synchronous best-effort write：保存失敗寫 structured error log，但不使 customer request 失敗。Admin dry-run 不寫入正式 decision log，避免測試 facts 污染稽核資料。後續流量增加時再改為 batch/async pipeline。
+- Nested OR/AND 的 first failure 依 condition deterministic traversal order 記錄。MVP 不計算最小失敗證明或重建 group-level causal explanation。
+- Public API 收到 inactive Product ID 時維持 resource not found semantics，不回傳該 Product 的 Campaign eligibility。
+- Prometheus registry、distributed rate limiting 與 rule payload byte-size limit 尚無共用 infrastructure。MVP 已限制 rule depth 與 condition count；上述能力列為 external production exposure 前的 platform follow-up。
+
 ## Campaign Ranking
 
 同一使用者符合多個 Campaign 時依序比較：

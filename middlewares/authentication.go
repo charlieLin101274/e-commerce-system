@@ -35,6 +35,31 @@ func Authentication(tokenManager baseauth.TokenManager) gin.HandlerFunc {
 	}
 }
 
+func OptionalAuthentication(tokenManager baseauth.TokenManager) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		header := c.GetHeader("Authorization")
+		if strings.TrimSpace(header) == "" {
+			c.Next()
+			return
+		}
+		parts := strings.Fields(header)
+		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+			response.Error(c, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
+			c.Abort()
+			return
+		}
+		claims, err := tokenManager.Verify(c.Request.Context(), parts[1])
+		if err != nil {
+			response.Error(c, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
+			c.Abort()
+			return
+		}
+		c.Set(userIDContextKey, claims.UserID.String())
+		c.Set(roleContextKey, claims.Role)
+		c.Next()
+	}
+}
+
 func UserIDFromContext(c *gin.Context) (string, bool) {
 	value, exists := c.Get(userIDContextKey)
 	if !exists {

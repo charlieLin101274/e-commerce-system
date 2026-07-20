@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/linenxing/e-commerce-system/base/apperror"
+	"github.com/linenxing/e-commerce-system/base/logger"
 	"github.com/linenxing/e-commerce-system/models"
 	campaignstore "github.com/linenxing/e-commerce-system/stores/campaign"
 )
@@ -22,13 +23,26 @@ type service struct {
 func New(store campaignstore.Store) Service { return &service{store: store, now: time.Now} }
 
 func (s *service) Create(ctx context.Context, createdBy uuid.UUID, param WriteParam) (models.Campaign, error) {
+	if param.ContextType == "" {
+		param.ContextType = models.EvaluationContextCampaignDiscovery
+	}
+	normalizeRule(param.EligibilityRule)
+	if len(ValidateRule(param.EligibilityRule, param.ContextType)) > 0 {
+		return models.Campaign{}, apperror.ErrInvalidInput
+	}
 	value, err := buildCampaign(param)
 	if err != nil {
 		return models.Campaign{}, err
 	}
 	value.Status = models.CampaignStatusDraft
 	value.CreatedBy = createdBy
-	return s.store.Create(ctx, value)
+	value.RuleContextType = param.ContextType
+	value.EligibilityRule = param.EligibilityRule
+	value, err = s.store.Create(ctx, value)
+	if err != nil {
+		return value, err
+	}
+	return s.get(ctx, value.ID)
 }
 
 func (s *service) Update(ctx context.Context, id uuid.UUID, param WriteParam) (models.Campaign, error) {
@@ -39,13 +53,30 @@ func (s *service) Update(ctx context.Context, id uuid.UUID, param WriteParam) (m
 	if current.Status != models.CampaignStatusDraft {
 		return models.Campaign{}, apperror.ErrConflict
 	}
+	if param.ContextType == "" {
+		param.ContextType = models.EvaluationContextCampaignDiscovery
+	}
+	normalizeRule(param.EligibilityRule)
+	if len(ValidateRule(param.EligibilityRule, param.ContextType)) > 0 {
+		return models.Campaign{}, apperror.ErrInvalidInput
+	}
 	value, err := buildCampaign(param)
 	if err != nil {
 		return models.Campaign{}, err
 	}
 	value.ID, value.Status, value.CreatedBy = current.ID, current.Status, current.CreatedBy
 	value.CreatedAt, value.PublishedAt = current.CreatedAt, current.PublishedAt
-	return s.update(ctx, value)
+	value, err = s.update(ctx, value)
+	if err != nil {
+		return value, err
+	}
+	if param.EligibilityRule == nil {
+		return s.get(ctx, value.ID)
+	}
+	if _, err = s.store.CreateRuleVersion(ctx, value.ID, param.ContextType, param.EligibilityRule); err != nil {
+		return models.Campaign{}, err
+	}
+	return s.get(ctx, value.ID)
 }
 
 func buildCampaign(param WriteParam) (models.Campaign, error) {
@@ -81,6 +112,9 @@ func (s *service) Publish(ctx context.Context, id uuid.UUID) (models.Campaign, e
 	}
 	if value.Status != models.CampaignStatusDraft || !s.now().Before(value.EndsAt) {
 		return models.Campaign{}, apperror.ErrConflict
+	}
+	if validationErrors := ValidateRule(value.EligibilityRule, value.RuleContextType); len(validationErrors) > 0 {
+		return models.Campaign{}, apperror.ErrInvalidInput
 	}
 	products, err := s.store.GetProductCategories(ctx, value.ProductIDs)
 	if err != nil {
@@ -157,18 +191,26 @@ func (s *service) GetAdmin(ctx context.Context, id uuid.UUID) (models.Campaign, 
 	return value, err
 }
 
-func (s *service) ListPublic(ctx context.Context, productID *uuid.UUID) ([]models.Campaign, error) {
+func (s *service) ListPublic(ctx context.Context, productID, userID *uuid.UUID) ([]models.Campaign, error) {
 	items, err := s.store.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	category, err := s.productCategory(ctx, productID)
+	facts, err := s.discoveryFacts(ctx, productID, userID)
 	if err != nil {
 		return nil, err
 	}
+	category := discoveryCategory(facts)
 	result := make([]models.Campaign, 0)
 	for _, value := range items {
 		if effectiveStatus(value, s.now()) == models.CampaignStatusRunning && matchesScope(value, productID, category) {
+			decision, evaluationErr := s.evaluate(ctx, value, models.EvaluationContextCampaignDiscovery, facts, false, true)
+			if evaluationErr != nil {
+				return nil, evaluationErr
+			}
+			if !decision.Eligible {
+				continue
+			}
 			value.Status = models.CampaignStatusRunning
 			result = append(result, value)
 		}
@@ -182,35 +224,149 @@ func (s *service) ListPublic(ctx context.Context, productID *uuid.UUID) ([]model
 	return result, nil
 }
 
-func (s *service) GetPublic(ctx context.Context, id uuid.UUID, productID *uuid.UUID) (models.Campaign, error) {
+func (s *service) GetPublic(ctx context.Context, id uuid.UUID, productID, userID *uuid.UUID) (models.Campaign, error) {
 	value, err := s.get(ctx, id)
 	if err != nil || effectiveStatus(value, s.now()) != models.CampaignStatusRunning {
 		return models.Campaign{}, apperror.ErrNotFound
 	}
-	category, err := s.productCategory(ctx, productID)
+	facts, err := s.discoveryFacts(ctx, productID, userID)
 	if err != nil {
 		return models.Campaign{}, err
 	}
+	category := discoveryCategory(facts)
 	if !matchesScope(value, productID, category) {
+		return models.Campaign{}, apperror.ErrNotFound
+	}
+	decision, err := s.evaluate(ctx, value, models.EvaluationContextCampaignDiscovery, facts, false, true)
+	if err != nil {
+		return models.Campaign{}, err
+	}
+	if !decision.Eligible {
 		return models.Campaign{}, apperror.ErrNotFound
 	}
 	value.Status = models.CampaignStatusRunning
 	return value, nil
 }
 
-func (s *service) productCategory(ctx context.Context, productID *uuid.UUID) (string, error) {
-	if productID == nil {
-		return "", nil
+func (s *service) EvaluatePublic(ctx context.Context, id uuid.UUID, productID, userID *uuid.UUID) (models.EvaluationResult, error) {
+	value, err := s.get(ctx, id)
+	if err != nil || effectiveStatus(value, s.now()) != models.CampaignStatusRunning {
+		return models.EvaluationResult{}, apperror.ErrNotFound
 	}
-	products, err := s.store.GetProductCategories(ctx, []uuid.UUID{*productID})
+	facts, err := s.discoveryFacts(ctx, productID, userID)
 	if err != nil {
-		return "", err
+		return models.EvaluationResult{}, err
 	}
-	category, exists := products[*productID]
-	if !exists {
-		return "", apperror.ErrNotFound
+	category := discoveryCategory(facts)
+	if !matchesScope(value, productID, category) {
+		return publicDecision(value, false, "NOT_ELIGIBLE", s.now()), nil
 	}
-	return normalizeCategory(category), nil
+	result, err := s.evaluate(ctx, value, models.EvaluationContextCampaignDiscovery, facts, true, true)
+	if err == nil {
+		result.ConditionDecisions = nil
+		result.MissingFacts = nil
+		if !result.Eligible {
+			result.ReasonCode = "NOT_ELIGIBLE"
+		}
+	}
+	return result, err
+}
+
+func (s *service) ValidateRules(ctx context.Context, id uuid.UUID) ([]string, error) {
+	value, err := s.get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return ValidateRule(value.EligibilityRule, value.RuleContextType), nil
+}
+
+func (s *service) EvaluateRules(ctx context.Context, id uuid.UUID, contextType models.EvaluationContextType, facts models.EvaluationFacts) (models.EvaluationResult, error) {
+	value, err := s.get(ctx, id)
+	if err != nil {
+		return models.EvaluationResult{}, err
+	}
+	errors := ValidateRule(value.EligibilityRule, contextType)
+	if len(errors) > 0 {
+		return models.EvaluationResult{CampaignID: value.ID, RuleVersion: value.RuleVersion, ReasonCode: "INVALID_RULE", EvaluatedAt: s.now(), ValidationErrors: errors}, nil
+	}
+	return s.evaluate(ctx, value, contextType, facts, true, false)
+}
+
+func (s *service) discoveryFacts(ctx context.Context, productID, userID *uuid.UUID) (models.EvaluationFacts, error) {
+	var facts models.EvaluationFacts
+	if productID != nil {
+		product, err := s.store.GetProductFacts(ctx, *productID)
+		if errors.Is(err, campaignstore.ErrNotFound) {
+			return facts, apperror.ErrNotFound
+		}
+		if err != nil {
+			return facts, err
+		}
+		product.Category = normalizeCategory(product.Category)
+		if product.Status != models.ProductStatusActive {
+			return facts, apperror.ErrNotFound
+		}
+		facts.Product = &product
+	}
+	if userID != nil {
+		member, err := s.store.GetMemberFacts(ctx, *userID)
+		if errors.Is(err, campaignstore.ErrNotFound) {
+			return facts, apperror.ErrNotFound
+		}
+		if err != nil {
+			return facts, err
+		}
+		facts.Member = &member
+	}
+	return facts, nil
+}
+
+func discoveryCategory(facts models.EvaluationFacts) string {
+	if facts.Product == nil {
+		return ""
+	}
+	return facts.Product.Category
+}
+
+func (s *service) evaluate(ctx context.Context, value models.Campaign, contextType models.EvaluationContextType, facts models.EvaluationFacts, includeDetail, persistDecision bool) (models.EvaluationResult, error) {
+	startedAt := time.Now()
+	eligible, decisions := evaluateRule(value.EligibilityRule, facts)
+	failedID, internalReason := firstFailure(decisions)
+	reason := "ELIGIBLE"
+	if !eligible {
+		reason = internalReason
+	} else {
+		failedID = ""
+	}
+	result := models.EvaluationResult{Eligible: eligible, CampaignID: value.ID, RuleVersion: value.RuleVersion, ReasonCode: reason, EvaluatedAt: s.now()}
+	if eligible && facts.Product != nil && includeDetail {
+		preview, err := CalculateBenefit(value.BenefitType, value.BenefitValue, value.MaximumDiscountAmount, facts.Product.Price)
+		if err != nil {
+			return models.EvaluationResult{}, err
+		}
+		result.BenefitPreview = &preview
+	}
+	missing := missingFacts(decisions)
+	matched := make([]string, 0)
+	for _, decision := range decisions {
+		if decision.Matched {
+			matched = append(matched, decision.ConditionID)
+		}
+	}
+	if persistDecision {
+		logValue := campaignstore.DecisionLog{CampaignID: value.ID, RuleVersion: value.RuleVersion, ContextType: contextType, Eligible: eligible, ReasonCode: reason, Facts: facts, MatchedConditionIDs: matched, FailedConditionID: failedID, MissingFacts: missing, DurationMicroseconds: time.Since(startedAt).Microseconds(), EvaluatedAt: result.EvaluatedAt}
+		if err := s.store.SaveDecisionLog(ctx, logValue); err != nil {
+			logger.FromContext(ctx).Error().Err(err).Str("campaign_id", value.ID.String()).Int("rule_version", value.RuleVersion).Msg("failed to save campaign decision log")
+		}
+	}
+	if includeDetail {
+		result.ConditionDecisions, result.MissingFacts = decisions, missing
+	}
+	return result, nil
+}
+
+func publicDecision(value models.Campaign, eligible bool, reason string, now time.Time) models.EvaluationResult {
+	return models.EvaluationResult{Eligible: eligible, CampaignID: value.ID, RuleVersion: value.RuleVersion, ReasonCode: reason, EvaluatedAt: now}
 }
 
 func (s *service) get(ctx context.Context, id uuid.UUID) (models.Campaign, error) {

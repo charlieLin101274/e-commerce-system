@@ -13,12 +13,19 @@ import (
 )
 
 type fakeStore struct {
-	campaigns map[uuid.UUID]models.Campaign
-	products  map[uuid.UUID]string
+	campaigns         map[uuid.UUID]models.Campaign
+	products          map[uuid.UUID]string
+	productFactReads  int
+	memberFactReads   int
+	decisionLogWrites int
+	decisionLogError  error
 }
 
 func (s *fakeStore) Create(_ context.Context, value models.Campaign) (models.Campaign, error) {
 	value.ID = uuid.New()
+	if value.EligibilityRule != nil {
+		value.RuleVersion = 1
+	}
 	s.campaigns[value.ID] = value
 	return value, nil
 }
@@ -57,6 +64,34 @@ func (s *fakeStore) GetProductCategories(_ context.Context, ids []uuid.UUID) (ma
 	return result, nil
 }
 
+func (s *fakeStore) GetProductFacts(_ context.Context, id uuid.UUID) (models.ProductFacts, error) {
+	s.productFactReads++
+	category, exists := s.products[id]
+	if !exists {
+		return models.ProductFacts{}, campaignstore.ErrNotFound
+	}
+	return models.ProductFacts{ID: id, Category: category, Price: 1000, Status: models.ProductStatusActive}, nil
+}
+
+func (s *fakeStore) GetMemberFacts(_ context.Context, id uuid.UUID) (models.MemberFacts, error) {
+	s.memberFactReads++
+	return models.MemberFacts{ID: id}, nil
+}
+
+func (s *fakeStore) CreateRuleVersion(_ context.Context, campaignID uuid.UUID, contextType models.EvaluationContextType, rule *models.RuleGroup) (int, error) {
+	value := s.campaigns[campaignID]
+	value.RuleVersion++
+	value.RuleContextType = contextType
+	value.EligibilityRule = rule
+	s.campaigns[campaignID] = value
+	return value.RuleVersion, nil
+}
+
+func (s *fakeStore) SaveDecisionLog(context.Context, campaignstore.DecisionLog) error {
+	s.decisionLogWrites++
+	return s.decisionLogError
+}
+
 func TestCalculateBenefit(t *testing.T) {
 	maximum := int64(150)
 	result, err := CalculateBenefit(models.BenefitTypePercentage, 20, &maximum, 1000)
@@ -90,12 +125,39 @@ func TestPublicListFiltersAndRanksCampaigns(t *testing.T) {
 		},
 	}
 	service := &service{store: store, now: func() time.Time { return now }}
-	result, err := service.ListPublic(context.Background(), &productID)
+	result, err := service.ListPublic(context.Background(), &productID, nil)
 	if err != nil {
 		t.Fatalf("list public campaigns: %v", err)
 	}
 	if len(result) != 2 || result[0].ID != lowLexicalID || result[1].ID != highID {
 		t.Fatalf("unexpected deterministic order: %+v", result)
+	}
+	if store.productFactReads != 1 {
+		t.Fatalf("expected product facts to be loaded once, got %d", store.productFactReads)
+	}
+}
+
+func TestPublicListDoesNotFailWhenDecisionLogWriteFails(t *testing.T) {
+	now := time.Now()
+	id, productID := uuid.New(), uuid.New()
+	store := &fakeStore{decisionLogError: errors.New("log unavailable"), products: map[uuid.UUID]string{productID: "electronics"}, campaigns: map[uuid.UUID]models.Campaign{id: {ID: id, Status: models.CampaignStatusRunning, StartsAt: now.Add(-time.Hour), EndsAt: now.Add(time.Hour), ProductIDs: []uuid.UUID{productID}}}}
+	service := &service{store: store, now: func() time.Time { return now }}
+	result, err := service.ListPublic(context.Background(), &productID, nil)
+	if err != nil || len(result) != 1 {
+		t.Fatalf("decision log failure must not fail public list: result=%v err=%v", result, err)
+	}
+}
+
+func TestAdminDryRunDoesNotWriteDecisionLog(t *testing.T) {
+	id := uuid.New()
+	store := &fakeStore{products: map[uuid.UUID]string{}, campaigns: map[uuid.UUID]models.Campaign{id: {ID: id, BenefitType: models.BenefitTypeFixedAmount, BenefitValue: 100, RuleContextType: models.EvaluationContextCampaignDiscovery}}}
+	service := &service{store: store, now: time.Now}
+	_, err := service.EvaluateRules(context.Background(), id, models.EvaluationContextCampaignDiscovery, models.EvaluationFacts{})
+	if err != nil {
+		t.Fatalf("dry-run evaluation: %v", err)
+	}
+	if store.decisionLogWrites != 0 {
+		t.Fatalf("dry-run must not write decision logs, got %d", store.decisionLogWrites)
 	}
 }
 

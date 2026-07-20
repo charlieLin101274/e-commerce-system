@@ -19,6 +19,8 @@ type User struct {
 	PasswordHash string    `db:"password_hash"`
 	Name         string    `db:"name"`
 	Role         UserRole  `db:"role"`
+	MemberLevel  string    `db:"member_level"`
+	MemberTags   []string  `db:"member_tags"`
 	CreatedAt    time.Time `db:"created_at"`
 	UpdatedAt    time.Time `db:"updated_at"`
 }

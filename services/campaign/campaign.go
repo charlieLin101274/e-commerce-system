@@ -21,6 +21,8 @@ type WriteParam struct {
 	MaximumDiscountAmount *int64
 	ProductIDs            []uuid.UUID
 	Categories            []string
+	ContextType           models.EvaluationContextType
+	EligibilityRule       *models.RuleGroup
 }
 
 type Service interface {
@@ -32,6 +34,9 @@ type Service interface {
 	Archive(context.Context, uuid.UUID) (models.Campaign, error)
 	ListAdmin(context.Context) ([]models.Campaign, error)
 	GetAdmin(context.Context, uuid.UUID) (models.Campaign, error)
-	ListPublic(context.Context, *uuid.UUID) ([]models.Campaign, error)
-	GetPublic(context.Context, uuid.UUID, *uuid.UUID) (models.Campaign, error)
+	ListPublic(context.Context, *uuid.UUID, *uuid.UUID) ([]models.Campaign, error)
+	GetPublic(context.Context, uuid.UUID, *uuid.UUID, *uuid.UUID) (models.Campaign, error)
+	EvaluatePublic(context.Context, uuid.UUID, *uuid.UUID, *uuid.UUID) (models.EvaluationResult, error)
+	ValidateRules(context.Context, uuid.UUID) ([]string, error)
+	EvaluateRules(context.Context, uuid.UUID, models.EvaluationContextType, models.EvaluationFacts) (models.EvaluationResult, error)
 }

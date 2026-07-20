@@ -83,7 +83,7 @@ func NewApplication(ctx context.Context, cfg config.Config, log zerolog.Logger) 
 	productAPI.RegisterRoutes(router, authMiddleware, middlewares.RequireRole("admin"))
 	cartAPI.RegisterRoutes(router, authMiddleware)
 	orderAPI.RegisterRoutes(router, authMiddleware)
-	campaignAPI.RegisterRoutes(router, authMiddleware, middlewares.RequireRole("admin"))
+	campaignAPI.RegisterRoutes(router, middlewares.OptionalAuthentication(tokenManager), authMiddleware, middlewares.RequireRole("admin"))
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	return &Application{

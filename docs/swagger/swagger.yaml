@@ -24,9 +24,17 @@ definitions:
         items:
           type: string
         type: array
+      context_type:
+        allOf:
+        - $ref: '#/definitions/models.EvaluationContextType'
+        enum:
+        - campaign_discovery
+        - cart_recall
       description:
         maxLength: 5000
         type: string
+      eligibility_rule:
+        $ref: '#/definitions/models.RuleGroup'
       ends_at:
         type: string
       maximum_discount_amount:
@@ -117,6 +125,19 @@ definitions:
     - name
     - password
     type: object
+  cmd_api_apis.RuleEvaluateRequest:
+    properties:
+      context_type:
+        allOf:
+        - $ref: '#/definitions/models.EvaluationContextType'
+        enum:
+        - campaign_discovery
+        - cart_recall
+      facts:
+        $ref: '#/definitions/models.EvaluationFacts'
+    required:
+    - context_type
+    type: object
   cmd_api_apis.UpdateCartItemRequest:
     properties:
       quantity:
@@ -164,6 +185,15 @@ definitions:
         type: string
       user:
         $ref: '#/definitions/models.UserResp'
+    type: object
+  models.BenefitResult:
+    properties:
+      discount_amount:
+        type: integer
+      final_amount:
+        type: integer
+      original_amount:
+        type: integer
     type: object
   models.BenefitType:
     enum:
@@ -232,6 +262,13 @@ definitions:
     - CampaignStatusPaused
     - CampaignStatusEnded
     - CampaignStatusArchived
+  models.CartFacts:
+    properties:
+      item_count:
+        type: integer
+      total_price:
+        type: integer
+    type: object
   models.CartItemResp:
     properties:
       id:
@@ -253,6 +290,72 @@ definitions:
         type: array
       total_price:
         type: integer
+    type: object
+  models.ConditionDecision:
+    properties:
+      condition_id:
+        type: string
+      matched:
+        type: boolean
+      missing_fact:
+        type: string
+      reason_code:
+        type: string
+    type: object
+  models.EvaluationContextType:
+    enum:
+    - campaign_discovery
+    - cart_recall
+    type: string
+    x-enum-varnames:
+    - EvaluationContextCampaignDiscovery
+    - EvaluationContextCartRecall
+  models.EvaluationFacts:
+    properties:
+      cart:
+        $ref: '#/definitions/models.CartFacts'
+      member:
+        $ref: '#/definitions/models.MemberFacts'
+      product:
+        $ref: '#/definitions/models.ProductFacts'
+    type: object
+  models.EvaluationResult:
+    properties:
+      benefit_preview:
+        $ref: '#/definitions/models.BenefitResult'
+      campaign_id:
+        type: string
+      condition_decisions:
+        items:
+          $ref: '#/definitions/models.ConditionDecision'
+        type: array
+      eligible:
+        type: boolean
+      evaluated_at:
+        type: string
+      missing_facts:
+        items:
+          type: string
+        type: array
+      reason_code:
+        type: string
+      rule_version:
+        type: integer
+      validation_errors:
+        items:
+          type: string
+        type: array
+    type: object
+  models.MemberFacts:
+    properties:
+      id:
+        type: string
+      level:
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
     type: object
   models.OrderItemResp:
     properties:
@@ -288,6 +391,17 @@ definitions:
     type: string
     x-enum-varnames:
     - OrderStatusCompleted
+  models.ProductFacts:
+    properties:
+      category:
+        type: string
+      id:
+        type: string
+      price:
+        type: integer
+      status:
+        $ref: '#/definitions/models.ProductStatus'
+    type: object
   models.ProductResp:
     properties:
       category:
@@ -325,6 +439,32 @@ definitions:
     x-enum-varnames:
     - ProductStatusActive
     - ProductStatusInactive
+  models.RuleCondition:
+    properties:
+      fact:
+        type: string
+      id:
+        type: string
+      operator:
+        type: string
+      value:
+        items:
+          type: integer
+        type: array
+    type: object
+  models.RuleGroup:
+    properties:
+      conditions:
+        items:
+          $ref: '#/definitions/models.RuleCondition'
+        type: array
+      groups:
+        items:
+          $ref: '#/definitions/models.RuleGroup'
+        type: array
+      operator:
+        type: string
+    type: object
   models.UserResp:
     properties:
       created_at:
@@ -525,6 +665,55 @@ paths:
       summary: Resume paused campaign
       tags:
       - Admin Campaigns
+  /admin/campaigns/{id}/rules/evaluate:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Campaign ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Evaluation context
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/cmd_api_apis.RuleEvaluateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.EvaluationResult'
+      security:
+      - BearerAuth: []
+      summary: Dry-run active campaign rules
+      tags:
+      - Admin Campaigns
+  /admin/campaigns/{id}/rules/validate:
+    post:
+      parameters:
+      - description: Campaign ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Validate active campaign rules
+      tags:
+      - Admin Campaigns
   /admin/products:
     post:
       consumes:
@@ -698,6 +887,28 @@ paths:
           schema:
             $ref: '#/definitions/models.Campaign'
       summary: Get currently active campaign
+      tags:
+      - Campaigns
+  /campaigns/{id}/evaluate:
+    post:
+      parameters:
+      - description: Campaign ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Product ID used for server-side facts
+        in: query
+        name: product_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.EvaluationResult'
+      summary: Evaluate campaign eligibility
       tags:
       - Campaigns
   /cart:

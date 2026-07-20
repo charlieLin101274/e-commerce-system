@@ -286,6 +286,85 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/campaigns/{id}/rules/evaluate": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin Campaigns"
+                ],
+                "summary": "Dry-run active campaign rules",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Campaign ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Evaluation context",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/cmd_api_apis.RuleEvaluateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.EvaluationResult"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/campaigns/{id}/rules/validate": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin Campaigns"
+                ],
+                "summary": "Validate active campaign rules",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Campaign ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/admin/products": {
             "post": {
                 "security": [
@@ -557,6 +636,40 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/models.Campaign"
+                        }
+                    }
+                }
+            }
+        },
+        "/campaigns/{id}/evaluate": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Campaigns"
+                ],
+                "summary": "Evaluate campaign eligibility",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Campaign ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Product ID used for server-side facts",
+                        "name": "product_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.EvaluationResult"
                         }
                     }
                 }
@@ -937,9 +1050,23 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "context_type": {
+                    "enum": [
+                        "campaign_discovery",
+                        "cart_recall"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.EvaluationContextType"
+                        }
+                    ]
+                },
                 "description": {
                     "type": "string",
                     "maxLength": 5000
+                },
+                "eligibility_rule": {
+                    "$ref": "#/definitions/models.RuleGroup"
                 },
                 "ends_at": {
                     "type": "string"
@@ -1061,6 +1188,28 @@ const docTemplate = `{
                 }
             }
         },
+        "cmd_api_apis.RuleEvaluateRequest": {
+            "type": "object",
+            "required": [
+                "context_type"
+            ],
+            "properties": {
+                "context_type": {
+                    "enum": [
+                        "campaign_discovery",
+                        "cart_recall"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.EvaluationContextType"
+                        }
+                    ]
+                },
+                "facts": {
+                    "$ref": "#/definitions/models.EvaluationFacts"
+                }
+            }
+        },
         "cmd_api_apis.UpdateCartItemRequest": {
             "type": "object",
             "required": [
@@ -1130,6 +1279,20 @@ const docTemplate = `{
                 },
                 "user": {
                     "$ref": "#/definitions/models.UserResp"
+                }
+            }
+        },
+        "models.BenefitResult": {
+            "type": "object",
+            "properties": {
+                "discount_amount": {
+                    "type": "integer"
+                },
+                "final_amount": {
+                    "type": "integer"
+                },
+                "original_amount": {
+                    "type": "integer"
                 }
             }
         },
@@ -1228,6 +1391,17 @@ const docTemplate = `{
                 "CampaignStatusArchived"
             ]
         },
+        "models.CartFacts": {
+            "type": "object",
+            "properties": {
+                "item_count": {
+                    "type": "integer"
+                },
+                "total_price": {
+                    "type": "integer"
+                }
+            }
+        },
         "models.CartItemResp": {
             "type": "object",
             "properties": {
@@ -1259,6 +1433,106 @@ const docTemplate = `{
                 },
                 "total_price": {
                     "type": "integer"
+                }
+            }
+        },
+        "models.ConditionDecision": {
+            "type": "object",
+            "properties": {
+                "condition_id": {
+                    "type": "string"
+                },
+                "matched": {
+                    "type": "boolean"
+                },
+                "missing_fact": {
+                    "type": "string"
+                },
+                "reason_code": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.EvaluationContextType": {
+            "type": "string",
+            "enum": [
+                "campaign_discovery",
+                "cart_recall"
+            ],
+            "x-enum-varnames": [
+                "EvaluationContextCampaignDiscovery",
+                "EvaluationContextCartRecall"
+            ]
+        },
+        "models.EvaluationFacts": {
+            "type": "object",
+            "properties": {
+                "cart": {
+                    "$ref": "#/definitions/models.CartFacts"
+                },
+                "member": {
+                    "$ref": "#/definitions/models.MemberFacts"
+                },
+                "product": {
+                    "$ref": "#/definitions/models.ProductFacts"
+                }
+            }
+        },
+        "models.EvaluationResult": {
+            "type": "object",
+            "properties": {
+                "benefit_preview": {
+                    "$ref": "#/definitions/models.BenefitResult"
+                },
+                "campaign_id": {
+                    "type": "string"
+                },
+                "condition_decisions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ConditionDecision"
+                    }
+                },
+                "eligible": {
+                    "type": "boolean"
+                },
+                "evaluated_at": {
+                    "type": "string"
+                },
+                "missing_facts": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "reason_code": {
+                    "type": "string"
+                },
+                "rule_version": {
+                    "type": "integer"
+                },
+                "validation_errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "models.MemberFacts": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "level": {
+                    "type": "string"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -1314,6 +1588,23 @@ const docTemplate = `{
                 "OrderStatusCompleted"
             ]
         },
+        "models.ProductFacts": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "integer"
+                },
+                "status": {
+                    "$ref": "#/definitions/models.ProductStatus"
+                }
+            }
+        },
         "models.ProductResp": {
             "type": "object",
             "properties": {
@@ -1368,6 +1659,46 @@ const docTemplate = `{
                 "ProductStatusActive",
                 "ProductStatusInactive"
             ]
+        },
+        "models.RuleCondition": {
+            "type": "object",
+            "properties": {
+                "fact": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "operator": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "models.RuleGroup": {
+            "type": "object",
+            "properties": {
+                "conditions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.RuleCondition"
+                    }
+                },
+                "groups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.RuleGroup"
+                    }
+                },
+                "operator": {
+                    "type": "string"
+                }
+            }
         },
         "models.UserResp": {
             "type": "object",
