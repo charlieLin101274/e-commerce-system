@@ -14,15 +14,17 @@ const (
 )
 
 type User struct {
-	ID           uuid.UUID `db:"id"`
-	Email        string    `db:"email"`
-	PasswordHash string    `db:"password_hash"`
-	Name         string    `db:"name"`
-	Role         UserRole  `db:"role"`
-	MemberLevel  string    `db:"member_level"`
-	MemberTags   []string  `db:"member_tags"`
-	CreatedAt    time.Time `db:"created_at"`
-	UpdatedAt    time.Time `db:"updated_at"`
+	ID                   uuid.UUID             `db:"id"`
+	Email                string                `db:"email"`
+	PasswordHash         string                `db:"password_hash"`
+	Name                 string                `db:"name"`
+	Role                 UserRole              `db:"role"`
+	MemberLevel          string                `db:"member_level"`
+	MemberTags           []string              `db:"member_tags"`
+	MarketingConsent     bool                  `db:"marketing_consent"`
+	NotificationChannels []NotificationChannel `db:"notification_channels"`
+	CreatedAt            time.Time             `db:"created_at"`
+	UpdatedAt            time.Time             `db:"updated_at"`
 }
 
 type UserResp struct {

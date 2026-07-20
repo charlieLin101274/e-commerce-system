@@ -82,6 +82,17 @@ MVP 預設：
 - 同一 Journey 只允許一個 active task。
 - Transactional notification 不受 marketing cap，但不在本 PRD scope。
 
+## Stage 3 Implementation Decisions
+
+- 「同一 Campaign 對同一 user，24 小時最多一次」與「同一 user 每日最多兩則」在 MVP 都採 rolling 24-hour window。後者若未來需要 calendar-day 語意，必須先定義 user timezone 與跨時區處理方式。
+- Member consent 與 channel preference 透過 `GET /me/notification-preferences` 與 `PUT /me/notification-preferences` 維護。建立 task 與實際 delivery 前都必須檢查；使用者在排程後撤回 consent 時，task 進入 Failed 並記錄公開定義的 failure code。
+- MVP 每個 Journey 同一時間只允許一個 active Notification Task，因此不支援同一 Journey 同時發送 In-app 與 Push。Idempotency key 保留 channel 是為了識別實際 delivery identity，不代表支援 parallel multi-channel delivery。
+- MVP template 使用 migration seed 與 immutable version，不提供 template CRUD API；variable schema 與營運 template management 列為後續能力。Deep link 僅允許 `ecommerce://products`、`ecommerce://campaigns` 與 `ecommerce://cart`，template variables 必須 URL escape；external HTTPS domain allowlist 待正式 host configuration 建立後再開放。
+- Mock provider 成功後直接將 task 更新為 Delivered，不額外停留在 Sent。接入具有 asynchronous delivery acknowledgement 的真實 provider 時，必須拆分 Sent 與 Delivered transition。
+- Mock delivery 使用 PostgreSQL delivery receipt 與 provider idempotency key 保證 retry-safe。未來真實 provider contract 必須支援相同 idempotency semantics。
+- Notification Task creation 是供 Journey 使用的 internal service contract，不提供 public create API。Cart/Order Outbox、production event producer 與 `event_id`/consumer lag context 由 Stage 4 接入。
+- Stage 3 repository 尚無共用 Prometheus registry、OpenTelemetry exporter 與 PostgreSQL integration-test harness。目前以 unit test、SQL constraints 與 structured delivery log 驗證；`notification_tasks_total`、`notification_delivery_duration_seconds`、`notification_retries_total`、`notification.create`/`notification.deliver` spans，以及 DB concurrency integration tests 必須在 Stage 4 對外流量驗收前補齊。這是 tracked technical debt，不代表移除 NFR。
+
 ## Cart Recall Trigger
 
 ### Trigger Event
@@ -182,3 +193,5 @@ POST /admin/cart-recall-journeys/:id/cancel
 - `CAMPAIGN_ENDED`
 - `PROVIDER_TEMPORARY_FAILURE`
 - `PROVIDER_PERMANENT_FAILURE`
+- `PREFERENCE_LOOKUP_FAILED`
+- `INVALID_PAYLOAD`

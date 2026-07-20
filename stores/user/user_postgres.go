@@ -26,7 +26,7 @@ func (s *PostgresStore) Create(ctx context.Context, params CreateParams) (models
 	const query = `
 		INSERT INTO users (email, password_hash, name, role)
 		VALUES ($1, $2, $3, $4)
-		RETURNING id, email, password_hash, name, role, member_level, member_tags, created_at, updated_at`
+		RETURNING id, email, password_hash, name, role, member_level, member_tags, marketing_consent, notification_channels, created_at, updated_at`
 
 	user, err := scanUser(s.db.QueryRow(
 		ctx,
@@ -48,7 +48,7 @@ func (s *PostgresStore) Create(ctx context.Context, params CreateParams) (models
 
 func (s *PostgresStore) GetByEmail(ctx context.Context, email string) (models.User, error) {
 	const query = `
-		SELECT id, email, password_hash, name, role, member_level, member_tags, created_at, updated_at
+		SELECT id, email, password_hash, name, role, member_level, member_tags, marketing_consent, notification_channels, created_at, updated_at
 		FROM users
 		WHERE email = $1`
 
@@ -64,7 +64,7 @@ func (s *PostgresStore) GetByEmail(ctx context.Context, email string) (models.Us
 
 func (s *PostgresStore) GetByID(ctx context.Context, id uuid.UUID) (models.User, error) {
 	const query = `
-		SELECT id, email, password_hash, name, role, member_level, member_tags, created_at, updated_at
+		SELECT id, email, password_hash, name, role, member_level, member_tags, marketing_consent, notification_channels, created_at, updated_at
 		FROM users
 		WHERE id = $1`
 
@@ -92,6 +92,8 @@ func scanUser(row rowScanner) (models.User, error) {
 		&user.Role,
 		&user.MemberLevel,
 		&user.MemberTags,
+		&user.MarketingConsent,
+		&user.NotificationChannels,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)

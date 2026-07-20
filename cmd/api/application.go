@@ -22,10 +22,12 @@ import (
 	authservice "github.com/linenxing/e-commerce-system/services/auth"
 	campaignservice "github.com/linenxing/e-commerce-system/services/campaign"
 	cartservice "github.com/linenxing/e-commerce-system/services/cart"
+	notificationservice "github.com/linenxing/e-commerce-system/services/notification"
 	orderservice "github.com/linenxing/e-commerce-system/services/order"
 	productservice "github.com/linenxing/e-commerce-system/services/product"
 	campaignstore "github.com/linenxing/e-commerce-system/stores/campaign"
 	cartstore "github.com/linenxing/e-commerce-system/stores/cart"
+	notificationstore "github.com/linenxing/e-commerce-system/stores/notification"
 	orderstore "github.com/linenxing/e-commerce-system/stores/order"
 	productstore "github.com/linenxing/e-commerce-system/stores/product"
 	userstore "github.com/linenxing/e-commerce-system/stores/user"
@@ -64,16 +66,19 @@ func NewApplication(ctx context.Context, cfg config.Config, log zerolog.Logger) 
 	cartStore := cartstore.NewPostgresStore(db)
 	orderStore := orderstore.NewPostgresStore(db)
 	campaignStore := campaignstore.NewPostgresStore(db)
+	notificationStore := notificationstore.NewPostgresStore(db)
 	authService := authservice.New(userStore, tokenManager, passwordManager)
 	productService := productservice.New(productStore)
 	cartService := cartservice.New(cartStore, productStore)
 	orderService := orderservice.New(db, orderStore)
 	campaignService := campaignservice.New(campaignStore)
+	notificationService := notificationservice.New(notificationStore)
 	authAPI := apis.NewAuthAPI(authService)
 	productAPI := apis.NewProductAPI(productService)
 	cartAPI := apis.NewCartAPI(cartService)
 	orderAPI := apis.NewOrderAPI(orderService)
 	campaignAPI := apis.NewCampaignAPI(campaignService)
+	notificationAPI := apis.NewNotificationAPI(notificationService)
 
 	router := gin.New()
 	router.Use(middlewares.RequestLogger(log), middlewares.Recovery())
@@ -84,6 +89,7 @@ func NewApplication(ctx context.Context, cfg config.Config, log zerolog.Logger) 
 	cartAPI.RegisterRoutes(router, authMiddleware)
 	orderAPI.RegisterRoutes(router, authMiddleware)
 	campaignAPI.RegisterRoutes(router, middlewares.OptionalAuthentication(tokenManager), authMiddleware, middlewares.RequireRole("admin"))
+	notificationAPI.RegisterRoutes(router, authMiddleware, middlewares.RequireRole("admin"))
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	return &Application{

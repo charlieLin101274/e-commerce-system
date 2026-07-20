@@ -82,6 +82,21 @@ definitions:
     - email
     - password
     type: object
+  cmd_api_apis.NotificationResponse:
+    properties:
+      body:
+        type: string
+      created_at:
+        type: string
+      deep_link:
+        type: string
+      id:
+        type: string
+      opened_at:
+        type: string
+      title:
+        type: string
+    type: object
   cmd_api_apis.ProductRequest:
     properties:
       category:
@@ -1004,6 +1019,38 @@ paths:
       summary: Health check
       tags:
       - System
+  /notifications:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/cmd_api_apis.NotificationResponse'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: List delivered in-app notifications
+      tags:
+      - Notifications
+  /notifications/{id}/open:
+    post:
+      parameters:
+      - description: Notification ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - BearerAuth: []
+      summary: Mark an in-app notification opened
+      tags:
+      - Notifications
   /orders:
     get:
       produces:

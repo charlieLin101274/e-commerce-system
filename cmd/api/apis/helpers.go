@@ -42,6 +42,8 @@ func writeError(c *gin.Context, err error) {
 		response.Error(c, http.StatusConflict, "insufficient_stock", "product stock is insufficient")
 	case errors.Is(err, apperror.ErrConflict):
 		response.Error(c, http.StatusConflict, "conflict", "resource conflict")
+	case errors.Is(err, apperror.ErrForbidden):
+		response.Error(c, http.StatusForbidden, "forbidden", "operation is not allowed")
 	case errors.Is(err, apperror.ErrNotFound):
 		response.Error(c, http.StatusNotFound, "not_found", "resource was not found")
 	default:

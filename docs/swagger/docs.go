@@ -827,6 +827,60 @@ const docTemplate = `{
                 }
             }
         },
+        "/notifications": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "List delivered in-app notifications",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/cmd_api_apis.NotificationResponse"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/notifications/{id}/open": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Mark an in-app notification opened",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Notification ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/orders": {
             "get": {
                 "security": [
@@ -1123,6 +1177,29 @@ const docTemplate = `{
                 "password": {
                     "type": "string",
                     "maxLength": 72
+                }
+            }
+        },
+        "cmd_api_apis.NotificationResponse": {
+            "type": "object",
+            "properties": {
+                "body": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "deep_link": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "opened_at": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
                 }
             }
         },
