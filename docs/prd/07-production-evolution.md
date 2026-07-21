@@ -63,6 +63,163 @@ Outbox 仍然需要保留。API 不應在 business transaction 完成後直接 p
 
 Queue 可以使用 Kafka、SQS、Pub/Sub 或其他 managed service。選擇時應考慮 ordering、retry、維運成本與團隊現有 infrastructure，而不是只看 throughput。
 
+## Use Coupon Entitlements for Discounts
+
+### Goal
+
+MVP 的 Notification 直接顯示 Campaign benefit preview，Checkout 仍要重新確認 Campaign eligibility。這適合展示流程，但正式系統不應讓使用者已經收到的優惠完全依賴當下 Campaign 狀態。
+
+Post-MVP 建議改成發 Coupon：
+
+- Campaign 負責決定「誰可以獲得優惠」。
+- Coupon Template 負責定義「優惠內容與使用條件」。
+- User Coupon 代表「某位使用者實際取得的優惠權利」。
+- Checkout 驗證並核銷 User Coupon，不需要重新呼叫 Campaign Service 判斷完整 eligibility rule。
+
+Campaign 仍然存在，但角色從直接提供結帳優惠，改為選擇與發放 Coupon 的 orchestration source。
+
+### Target Flow
+
+```text
+Cart Recall Journey
+        |
+        v
+Campaign and Rule evaluation
+        |
+        v
+Issue User Coupon
+        |
+        v
+Create Notification Task with coupon_id
+        |
+        v
+User returns to Cart
+        |
+        v
+Checkout validates and redeems Coupon
+```
+
+Notification 應帶入 `coupon_id` 或 Coupon deep link，而不是只顯示一個沒有 entitlement 的折扣 preview。
+
+### Why Coupon Is Safer
+
+- Campaign 在通知送出後被 Pause 或修改時，已發出的 Coupon 是否仍有效可以由明確 policy 決定。
+- Checkout 只依賴 Coupon contract，不必重跑可能已變更的 Campaign rule。
+- 每位使用者是否已領取、是否使用、何時到期都可以稽核。
+- 可以限制總發行量、每人領取次數、每張 Coupon 使用次數與活動成本。
+- Retry 可以透過 idempotency key 避免發出多張相同 Coupon。
+- Customer Service 可以查到使用者實際取得的優惠，而不是只看到曾經符合某個 Campaign。
+
+### Suggested Data Model
+
+```text
+CouponTemplate
+--------------
+id
+name
+benefit_type
+benefit_value
+maximum_discount_amount
+minimum_order_amount
+product_ids
+categories
+starts_at
+ends_at
+total_issuance_limit
+status
+version
+
+UserCoupon
+----------
+id
+coupon_template_id
+coupon_template_version
+user_id
+source_type
+source_campaign_id
+source_journey_id
+status
+issued_at
+valid_from
+expires_at
+redeemed_at
+redeemed_order_id
+idempotency_key
+benefit_snapshot
+```
+
+`benefit_snapshot` 保存發放當下的優惠內容。Coupon Template 之後修改時，已發出的 Coupon 不會在沒有明確 migration policy 的情況下被偷偷改變。
+
+### Coupon Lifecycle
+
+```text
+Issued -> Active -> Redeemed
+             |
+             +-> Expired
+             |
+             +-> Revoked
+```
+
+- `Issued`：已建立，但尚未到可使用時間。
+- `Active`：可以在 Checkout 使用。
+- `Redeemed`：已被訂單成功核銷。
+- `Expired`：超過到期時間。
+- `Revoked`：因風險、退款或營運決策失效。
+
+狀態不能只依賴 background job 更新。Checkout 仍需以 `valid_from <= now < expires_at`、status 與使用條件做即時檢查。
+
+### Issuance Rules
+
+- 使用 `journey_type:journey_id:coupon_template_version` 作為發放 idempotency key。
+- 建立 User Coupon 與 Journey transition 應在同一 transaction，或使用 Saga / Outbox 保證最終一致性。
+- 發放前檢查 Campaign、Rule、consent 與 frequency cap。
+- 發放成功後才建立包含 Coupon 的 Notification Task。
+- Notification retry 只能重送同一張 Coupon，不能重新發一張。
+- Campaign Pause 後停止發放新 Coupon；已發 Coupon 是否失效由 Campaign cancellation policy 決定。
+- Coupon 到期時間應保存為明確 timestamp，不在讀取時依目前 Campaign 結束時間動態推算。
+
+### Checkout Rules
+
+- Client 只能提交 `coupon_id`，不能提交折扣金額。
+- Checkout 必須確認 Coupon 屬於目前 user。
+- Checkout 必須檢查 status、有效時間、商品範圍、minimum order amount 與使用次數。
+- 折扣計算仍使用共用 Benefit Calculator，不能在 Checkout 重新實作另一套 rounding logic。
+- Coupon 核銷、Order 建立與庫存扣除應在同一 database transaction；若跨 service，需使用 reservation 與 Saga。
+- Database constraint 必須保證單次使用 Coupon 不會被兩個 concurrent Orders 同時核銷。
+- Client 收到的失敗原因應使用穩定 error code，例如 `coupon_expired`、`coupon_not_applicable`、`coupon_already_redeemed`。
+
+### Campaign and Coupon Relationship
+
+```text
+Campaign
+  |
+  +--> eligibility rule
+  |
+  +--> coupon_template_id
+  |
+  +--> issuance policy
+          |
+          v
+      User Coupon
+          |
+          v
+       Checkout
+```
+
+Campaign 不應成為已發 Coupon 每次讀取與核銷時的 hard dependency。User Coupon 必須保存足以獨立驗證的 template version、benefit snapshot、有效時間與適用範圍。
+
+### Metrics
+
+- `coupon_issued_total`
+- `coupon_issue_failed_total`
+- `coupon_redeemed_total`
+- `coupon_expired_total`
+- `coupon_revoked_total`
+- Coupon issuance-to-redemption conversion rate。
+- Coupon liability 與預估 promotion cost。
+
+Coupon redemption 仍不等於 incremental growth。是否真的帶來額外訂單，仍需搭配 control group 比較。
+
 ## Distributed Tracing
 
 ### Goal
@@ -184,9 +341,9 @@ Domain 與 service layer 不應直接依賴 HTTP。`AppError` 保存公開 error
 
 ```go
 type AppError struct {
-    Code       string
+    Code        string
     SafeMessage string
-    Cause      error
+    Cause       error
 }
 
 var HTTPStatusByCode = map[string]int{
@@ -252,7 +409,9 @@ Server log：
 5. Outbox schema 加入 trace context metadata。
 6. 建立 Outbox publisher 與 external queue。
 7. Queue consumer extraction trace context，並保留 Inbox deduplication。
-8. 補 trace propagation、error sanitization、duplicate delivery 與 replay integration tests。
+8. 建立 Coupon Template、User Coupon、發放 idempotency 與 Checkout redemption contract。
+9. Cart Recall 改為先發 Coupon，再建立包含 `coupon_id` 的 Notification Task。
+10. 補 trace propagation、error sanitization、Coupon concurrent redemption、duplicate delivery 與 replay integration tests。
 
 ## Risks
 
@@ -261,3 +420,6 @@ Server log：
 - Error code 數量若沒有管理，client contract 會快速失控。
 - 同一錯誤在每層都記錄會造成 log noise，並提高 Loki 儲存成本。
 - Queue 不會自動提供 exactly-once business processing；consumer idempotency 仍然必要。
+- Campaign Pause、Coupon revoke 與已送出 Notification 之間必須有明確 policy，否則使用者可能看到無法使用的優惠。
+- Coupon 發放與核銷若缺少 idempotency 及 database constraint，可能造成重複折扣或超發。
+- 已發 Coupon 會形成 promotion liability，需要 issuance limit、成本監控與到期政策。
