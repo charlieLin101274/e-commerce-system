@@ -28,6 +28,7 @@
 | [04-repurchase-and-attribution.md](04-repurchase-and-attribution.md) | Repurchase 與成效歸因 |
 | [05-non-functional-requirements.md](05-non-functional-requirements.md) | 一致性、安全性與 observability |
 | [06-growth-and-operations.md](06-growth-and-operations.md) | 營運流程、KPI、guardrails 與後續 experiment 設計 |
+| [07-production-evolution.md](07-production-evolution.md) | Queue、distributed tracing、context logging 與 error handling 的後續設計 |
 
 ## Guiding Principles
 

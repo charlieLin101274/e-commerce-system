@@ -92,6 +92,13 @@ func (a *NotificationAPI) Open(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// ListAdminNotificationTasks godoc
+// @Summary List notification tasks
+// @Tags Admin Notifications
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {array} models.NotificationTask
+// @Router /admin/notification-tasks [get]
 func (a *NotificationAPI) ListAdmin(c *gin.Context) {
 	values, err := a.service.ListAdmin(c.Request.Context())
 	if err != nil {
@@ -100,6 +107,15 @@ func (a *NotificationAPI) ListAdmin(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, values)
 }
+
+// GetAdminNotificationTask godoc
+// @Summary Get notification task
+// @Tags Admin Notifications
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Notification Task ID"
+// @Success 200 {object} models.NotificationTask
+// @Router /admin/notification-tasks/{id} [get]
 func (a *NotificationAPI) GetAdmin(c *gin.Context) {
 	id, ok := pathID(c)
 	if !ok {
@@ -112,6 +128,14 @@ func (a *NotificationAPI) GetAdmin(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, value)
 }
+
+// RetryAdminNotificationTask godoc
+// @Summary Retry failed notification task
+// @Tags Admin Notifications
+// @Security BearerAuth
+// @Param id path string true "Notification Task ID"
+// @Success 204
+// @Router /admin/notification-tasks/{id}/retry [post]
 func (a *NotificationAPI) Retry(c *gin.Context) {
 	id, ok := pathID(c)
 	if !ok {
@@ -124,6 +148,13 @@ func (a *NotificationAPI) Retry(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// GetNotificationPreferences godoc
+// @Summary Get notification preferences
+// @Tags Notification Preferences
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} models.NotificationPreferences
+// @Router /me/notification-preferences [get]
 func (a *NotificationAPI) GetPreferences(c *gin.Context) {
 	userID, ok := currentUserID(c)
 	if !ok {
@@ -136,6 +167,16 @@ func (a *NotificationAPI) GetPreferences(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, value)
 }
+
+// UpdateNotificationPreferences godoc
+// @Summary Update notification preferences
+// @Tags Notification Preferences
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body models.NotificationPreferences true "Notification preferences"
+// @Success 200 {object} models.NotificationPreferences
+// @Router /me/notification-preferences [put]
 func (a *NotificationAPI) UpdatePreferences(c *gin.Context) {
 	userID, ok := currentUserID(c)
 	if !ok {

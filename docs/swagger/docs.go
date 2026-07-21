@@ -455,6 +455,93 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/notification-tasks": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin Notifications"
+                ],
+                "summary": "List notification tasks",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.NotificationTask"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/notification-tasks/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin Notifications"
+                ],
+                "summary": "Get notification task",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Notification Task ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.NotificationTask"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/notification-tasks/{id}/retry": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Admin Notifications"
+                ],
+                "summary": "Retry failed notification task",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Notification Task ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/admin/products": {
             "post": {
                 "security": [
@@ -924,6 +1011,66 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/cmd_api_apis.HealthResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/notification-preferences": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notification Preferences"
+                ],
+                "summary": "Get notification preferences",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.NotificationPreferences"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notification Preferences"
+                ],
+                "summary": "Update notification preferences",
+                "parameters": [
+                    {
+                        "description": "Notification preferences",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.NotificationPreferences"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.NotificationPreferences"
                         }
                     }
                 }
@@ -1791,6 +1938,119 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "models.NotificationChannel": {
+            "type": "string",
+            "enum": [
+                "in_app",
+                "push"
+            ],
+            "x-enum-varnames": [
+                "NotificationChannelInApp",
+                "NotificationChannelPush"
+            ]
+        },
+        "models.NotificationPreferences": {
+            "type": "object",
+            "properties": {
+                "marketing_consent": {
+                    "type": "boolean"
+                },
+                "notification_channels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.NotificationChannel"
+                    }
+                }
+            }
+        },
+        "models.NotificationTask": {
+            "type": "object",
+            "properties": {
+                "attempt_count": {
+                    "type": "integer"
+                },
+                "campaign_id": {
+                    "type": "string"
+                },
+                "channel": {
+                    "$ref": "#/definitions/models.NotificationChannel"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "failure_code": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "idempotency_key": {
+                    "type": "string"
+                },
+                "journey_id": {
+                    "type": "string"
+                },
+                "journey_type": {
+                    "type": "string"
+                },
+                "next_attempt_at": {
+                    "type": "string"
+                },
+                "opened_at": {
+                    "type": "string"
+                },
+                "payload": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "scheduled_at": {
+                    "type": "string"
+                },
+                "sent_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/models.NotificationTaskStatus"
+                },
+                "template_id": {
+                    "type": "string"
+                },
+                "template_version": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.NotificationTaskStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "processing",
+                "sent",
+                "delivered",
+                "opened",
+                "retry_scheduled",
+                "failed",
+                "cancelled"
+            ],
+            "x-enum-varnames": [
+                "NotificationTaskPending",
+                "NotificationTaskProcessing",
+                "NotificationTaskSent",
+                "NotificationTaskDelivered",
+                "NotificationTaskOpened",
+                "NotificationTaskRetryScheduled",
+                "NotificationTaskFailed",
+                "NotificationTaskCancelled"
+            ]
         },
         "models.OrderItemResp": {
             "type": "object",

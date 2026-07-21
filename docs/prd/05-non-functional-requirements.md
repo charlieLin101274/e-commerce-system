@@ -75,8 +75,9 @@ MVP 使用 structured JSON logs。依情境記錄以下欄位：
 
 ### Observability
 
-- OpenTelemetry trace propagation 與 exporter。
-- 核心 API、Rule Engine、event consumer、Journey 與 Notification spans。
+- OpenTelemetry trace propagation 與 exporter。HTTP、Outbox event 與 queue message 都要傳遞 trace context。
+- 核心 API、Rule Engine、event publisher、event consumer、Journey 與 Notification spans。
+- Context-based logger。程式從 `context.Context` 取得 logger 時，自動帶入 `trace_id`、`span_id` 與 `request_id`，避免每個呼叫點重複手動加入欄位。
 - Prometheus registry 與 metrics endpoint。
 - Worker throughput、consumer lag、retry、failure 與 Journey transition metrics。
 - Grafana dashboard 與 production alerts。
@@ -86,8 +87,16 @@ MVP 使用 structured JSON logs。依情境記錄以下欄位：
 - 每個 DB 與 provider operation 的 context timeout。
 - Worker bounded concurrency 與 graceful drain。
 - 將 PostgreSQL Outbox polling 拆成 publisher、external queue 與 consumer。
+- Queue message 使用 `event_id` 做 idempotency，並在 message metadata 傳遞 W3C Trace Context。
 - Dead-letter inspection 與 event replay 工具。
 - 真實 Push provider integration。
+
+### Error Handling
+
+- 將 client-safe error code、HTTP status 與 server-side internal error 分開處理。
+- Client response 只回傳穩定的 error code、HTTP status 與安全訊息，不回傳 SQL、stack trace 或第三方 provider 錯誤。
+- Internal error 只在 server boundary 記錄一次，並自動帶入 trace context，避免同一錯誤在每一層重複記錄。
+- 詳細設計請見 [Production Evolution](07-production-evolution.md)。
 
 ### Performance and Operations
 

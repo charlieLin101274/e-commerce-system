@@ -427,6 +427,86 @@ definitions:
           type: string
         type: array
     type: object
+  models.NotificationChannel:
+    enum:
+    - in_app
+    - push
+    type: string
+    x-enum-varnames:
+    - NotificationChannelInApp
+    - NotificationChannelPush
+  models.NotificationPreferences:
+    properties:
+      marketing_consent:
+        type: boolean
+      notification_channels:
+        items:
+          $ref: '#/definitions/models.NotificationChannel'
+        type: array
+    type: object
+  models.NotificationTask:
+    properties:
+      attempt_count:
+        type: integer
+      campaign_id:
+        type: string
+      channel:
+        $ref: '#/definitions/models.NotificationChannel'
+      created_at:
+        type: string
+      failure_code:
+        type: string
+      id:
+        type: string
+      idempotency_key:
+        type: string
+      journey_id:
+        type: string
+      journey_type:
+        type: string
+      next_attempt_at:
+        type: string
+      opened_at:
+        type: string
+      payload:
+        items:
+          type: integer
+        type: array
+      scheduled_at:
+        type: string
+      sent_at:
+        type: string
+      status:
+        $ref: '#/definitions/models.NotificationTaskStatus'
+      template_id:
+        type: string
+      template_version:
+        type: integer
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  models.NotificationTaskStatus:
+    enum:
+    - pending
+    - processing
+    - sent
+    - delivered
+    - opened
+    - retry_scheduled
+    - failed
+    - cancelled
+    type: string
+    x-enum-varnames:
+    - NotificationTaskPending
+    - NotificationTaskProcessing
+    - NotificationTaskSent
+    - NotificationTaskDelivered
+    - NotificationTaskOpened
+    - NotificationTaskRetryScheduled
+    - NotificationTaskFailed
+    - NotificationTaskCancelled
   models.OrderItemResp:
     properties:
       price:
@@ -838,6 +918,58 @@ paths:
       summary: Cancel cart recall journey
       tags:
       - Admin Cart Recall
+  /admin/notification-tasks:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.NotificationTask'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: List notification tasks
+      tags:
+      - Admin Notifications
+  /admin/notification-tasks/{id}:
+    get:
+      parameters:
+      - description: Notification Task ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.NotificationTask'
+      security:
+      - BearerAuth: []
+      summary: Get notification task
+      tags:
+      - Admin Notifications
+  /admin/notification-tasks/{id}/retry:
+    post:
+      parameters:
+      - description: Notification Task ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - BearerAuth: []
+      summary: Retry failed notification task
+      tags:
+      - Admin Notifications
   /admin/products:
     post:
       consumes:
@@ -1136,6 +1268,42 @@ paths:
       summary: Health check
       tags:
       - System
+  /me/notification-preferences:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.NotificationPreferences'
+      security:
+      - BearerAuth: []
+      summary: Get notification preferences
+      tags:
+      - Notification Preferences
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Notification preferences
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.NotificationPreferences'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.NotificationPreferences'
+      security:
+      - BearerAuth: []
+      summary: Update notification preferences
+      tags:
+      - Notification Preferences
   /notifications:
     get:
       produces:
