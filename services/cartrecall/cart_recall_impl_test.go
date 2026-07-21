@@ -15,6 +15,8 @@ import (
 
 type fakeStore struct {
 	state       store.CartState
+	states      []store.CartState
+	stateReads  int
 	member      models.MemberFacts
 	skipped     string
 	pending     bool
@@ -29,6 +31,14 @@ func (f *fakeStore) ClaimDue(context.Context, time.Time, time.Duration, int) ([]
 	return nil, nil
 }
 func (f *fakeStore) GetCartState(context.Context, uuid.UUID) (store.CartState, error) {
+	if len(f.states) > 0 {
+		index := f.stateReads
+		if index >= len(f.states) {
+			index = len(f.states) - 1
+		}
+		f.stateReads++
+		return f.states[index], nil
+	}
 	return f.state, nil
 }
 func (f *fakeStore) GetMemberFacts(context.Context, uuid.UUID) (models.MemberFacts, error) {
@@ -166,6 +176,32 @@ func TestWorkerCreatesOneNotificationWithSnapshot(t *testing.T) {
 	}
 	if notifications.created.JourneyID != journey.ID || notifications.created.CampaignID == nil || *notifications.created.CampaignID != campaignID {
 		t.Fatalf("unexpected notification params: %+v", notifications.created)
+	}
+	if notifications.created.TemplateID != uuid.MustParse(pushTemplateID) || notifications.created.Channel != models.NotificationChannelPush {
+		t.Fatalf("unexpected push notification template: %+v", notifications.created)
+	}
+}
+
+func TestWorkerCancelsWhenCartChangesBeforeTaskCreation(t *testing.T) {
+	now := time.Date(2026, 7, 20, 10, 0, 0, 0, time.UTC)
+	journey := models.CartRecallJourney{ID: uuid.New(), UserID: uuid.New(), CartID: uuid.New(), SourceEventID: uuid.New()}
+	initial := eligibleCartState(now)
+	changed := initial
+	changed.LastChange = initial.LastChange.Add(time.Minute)
+	valueStore := &fakeStore{states: []store.CartState{initial, changed}, member: models.MemberFacts{ID: journey.UserID}}
+	notifications := &fakeNotifications{preferences: models.NotificationPreferences{MarketingConsent: true, Channels: []models.NotificationChannel{models.NotificationChannelInApp}}}
+	matcher := fakeCampaignMatcher{campaign: models.Campaign{ID: uuid.New(), PromotionTitle: "Save"}, decision: models.EvaluationResult{Eligible: true}}
+	worker := NewWorker(valueStore, matcher, notifications, time.Minute)
+	worker.now = func() time.Time { return now }
+
+	if err := worker.evaluate(context.Background(), journey); err != nil {
+		t.Fatal(err)
+	}
+	if valueStore.skipped != "CART_CHANGED_RECENTLY" {
+		t.Fatalf("cancel reason=%q want=CART_CHANGED_RECENTLY", valueStore.skipped)
+	}
+	if notifications.created.JourneyID != uuid.Nil || valueStore.pending {
+		t.Fatalf("cart change must prevent task creation: created=%+v pending=%v", notifications.created, valueStore.pending)
 	}
 }
 

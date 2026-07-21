@@ -268,6 +268,22 @@ func (c *Client) GetAdminNotificationTask(ctx context.Context, token string, id 
 	return output, err
 }
 
+func (c *Client) ListCartRecallJourneys(ctx context.Context, token string) ([]models.CartRecallJourney, error) {
+	var output []models.CartRecallJourney
+	err := c.do(ctx, http.MethodGet, "/admin/cart-recall-journeys", token, nil, http.StatusOK, &output)
+	return output, err
+}
+
+func (c *Client) GetCartRecallJourney(ctx context.Context, token string, id uuid.UUID) (models.CartRecallJourney, error) {
+	var output models.CartRecallJourney
+	err := c.do(ctx, http.MethodGet, "/admin/cart-recall-journeys/"+id.String(), token, nil, http.StatusOK, &output)
+	return output, err
+}
+
+func (c *Client) CancelCartRecallJourney(ctx context.Context, token string, id uuid.UUID) error {
+	return c.do(ctx, http.MethodPost, "/admin/cart-recall-journeys/"+id.String()+"/cancel", token, nil, http.StatusNoContent, nil)
+}
+
 func (c *Client) transitionCampaign(ctx context.Context, token string, id uuid.UUID, action string) (AdminCampaign, error) {
 	var output AdminCampaign
 	err := c.do(ctx, http.MethodPost, "/admin/campaigns/"+id.String()+"/"+action, token, nil, http.StatusOK, &output)

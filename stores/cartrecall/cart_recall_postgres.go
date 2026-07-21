@@ -134,6 +134,7 @@ func (s *PostgresStore) completeOrder(ctx context.Context, tx pgx.Tx, event mode
 	var payload struct {
 		OrderID    uuid.UUID   `json:"order_id"`
 		UserID     uuid.UUID   `json:"user_id"`
+		CartID     uuid.UUID   `json:"cart_id"`
 		ProductIDs []uuid.UUID `json:"product_ids"`
 	}
 	if err := json.Unmarshal(event.Payload, &payload); err != nil {
@@ -143,7 +144,11 @@ func (s *PostgresStore) completeOrder(ctx context.Context, tx pgx.Tx, event mode
 		SELECT j.id,(j.status='sent' AND n.sent_at IS NOT NULL AND n.sent_at <= $4
 			AND n.sent_at >= $4 - INTERVAL '24 hours' AND j.matched_product_ids && $3::uuid[]) AS converts
 		FROM cart_recall_journeys j LEFT JOIN notification_tasks n ON n.id=j.notification_task_id
-		WHERE j.user_id=$1 AND j.status IN ('scheduled','evaluating','notification_pending','sent')
+		WHERE j.user_id=$1 AND (
+			(j.cart_id=$5 AND j.status IN ('scheduled','evaluating','notification_pending')) OR
+			(j.status='sent' AND n.sent_at IS NOT NULL AND n.sent_at <= $4
+				AND n.sent_at >= $4 - INTERVAL '24 hours' AND j.matched_product_ids && $3::uuid[])
+		)
 	), transitioned AS (UPDATE cart_recall_journeys j SET
 		status=CASE WHEN candidate.converts THEN 'converted'::cart_recall_status ELSE 'cancelled'::cart_recall_status END,
 		converted_order_id=CASE WHEN candidate.converts THEN $2 ELSE j.converted_order_id END,
@@ -152,7 +157,7 @@ func (s *PostgresStore) completeOrder(ctx context.Context, tx pgx.Tx, event mode
 		RETURNING j.id,j.campaign_id,j.notification_task_id,j.converted_order_id,j.matched_product_ids,j.status
 	), cancelled_tasks AS (UPDATE notification_tasks SET status='cancelled',failure_code='ORDER_ALREADY_COMPLETED',updated_at=$4
 		WHERE id IN (SELECT notification_task_id FROM transitioned WHERE status='cancelled') AND status IN ('pending','processing','retry_scheduled')
-	) SELECT id,campaign_id,notification_task_id,converted_order_id,matched_product_ids,status FROM transitioned`, payload.UserID, payload.OrderID, payload.ProductIDs, event.OccurredAt)
+	) SELECT id,campaign_id,notification_task_id,converted_order_id,matched_product_ids,status FROM transitioned`, payload.UserID, payload.OrderID, payload.ProductIDs, event.OccurredAt, payload.CartID)
 	if err != nil {
 		return err
 	}
@@ -247,10 +252,19 @@ func (s *PostgresStore) MarkCancelled(ctx context.Context, id uuid.UUID, reason 
 	if err != nil {
 		return err
 	}
-	if count != 1 {
-		return ErrConflict
+	if count == 1 {
+		return nil
 	}
-	return nil
+	var status models.CartRecallStatus
+	if err = s.db.QueryRow(ctx, `SELECT status FROM cart_recall_journeys WHERE id=$1`, id).Scan(&status); errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	} else if err != nil {
+		return err
+	}
+	if status == models.CartRecallCancelled {
+		return nil
+	}
+	return ErrConflict
 }
 
 func (s *PostgresStore) MarkNotificationPending(ctx context.Context, id uuid.UUID, campaign models.Campaign, snapshots []models.CartRecallProductSnapshot, taskID uuid.UUID) error {

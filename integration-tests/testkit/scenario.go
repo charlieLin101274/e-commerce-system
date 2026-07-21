@@ -83,6 +83,10 @@ func (s *Scenario) CreateDraftCampaign(t *testing.T, token string, productID uui
 }
 
 func (s *Scenario) CreateCartRecallCampaign(t *testing.T, token string, productID uuid.UUID) AdminCampaign {
+	return s.CreateCartRecallCampaignWithPriority(t, token, productID, 100)
+}
+
+func (s *Scenario) CreateCartRecallCampaignWithPriority(t *testing.T, token string, productID uuid.UUID, priority int) AdminCampaign {
 	t.Helper()
 	suffix := uuid.NewString()
 	rule := &models.RuleGroup{Operator: "and", Conditions: []models.RuleCondition{{
@@ -91,7 +95,7 @@ func (s *Scenario) CreateCartRecallCampaign(t *testing.T, token string, productI
 	output, err := s.Client.CreateCampaign(t.Context(), token, CampaignInput{
 		Name:                 "Integration Cart Recall " + suffix,
 		Description:          "Cart recall campaign created by an integration test",
-		Priority:             100,
+		Priority:             priority,
 		StartsAt:             time.Now().UTC().Add(-5 * time.Minute),
 		EndsAt:               time.Now().UTC().Add(time.Hour),
 		PromotionTitle:       "Complete your purchase",
