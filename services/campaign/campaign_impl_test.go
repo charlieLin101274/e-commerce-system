@@ -3,6 +3,7 @@ package campaign
 import (
 	"context"
 	"errors"
+	"sort"
 	"testing"
 	"time"
 
@@ -13,12 +14,13 @@ import (
 )
 
 type fakeStore struct {
-	campaigns         map[uuid.UUID]models.Campaign
-	products          map[uuid.UUID]string
-	productFactReads  int
-	memberFactReads   int
-	decisionLogWrites int
-	decisionLogError  error
+	campaigns          map[uuid.UUID]models.Campaign
+	products           map[uuid.UUID]string
+	productFactReads   int
+	memberFactReads    int
+	decisionLogWrites  int
+	decisionLogError   error
+	lastCandidateQuery campaignstore.CandidateQuery
 }
 
 func (s *fakeStore) Create(_ context.Context, value models.Campaign) (models.Campaign, error) {
@@ -52,6 +54,38 @@ func (s *fakeStore) List(context.Context) ([]models.Campaign, error) {
 		result = append(result, value)
 	}
 	return result, nil
+}
+
+func (s *fakeStore) ListPublicCandidates(_ context.Context, query campaignstore.CandidateQuery) ([]models.Campaign, error) {
+	s.lastCandidateQuery = query
+	result := make([]models.Campaign, 0, len(s.campaigns))
+	for _, value := range s.campaigns {
+		if effectiveStatus(value, query.Now) != models.CampaignStatusRunning {
+			continue
+		}
+		if query.ContextType != "" && value.RuleContextType != "" && value.RuleContextType != query.ContextType {
+			continue
+		}
+		if query.ProductID != nil && !matchesScope(value, query.ProductID, query.Category) {
+			continue
+		}
+		result = append(result, value)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Priority != result[j].Priority {
+			return result[i].Priority > result[j].Priority
+		}
+		return result[i].ID.String() < result[j].ID.String()
+	})
+	start := query.Offset
+	if start > len(result) {
+		start = len(result)
+	}
+	end := start + query.Limit
+	if end > len(result) {
+		end = len(result)
+	}
+	return result[start:end], nil
 }
 
 func (s *fakeStore) GetProductCategories(_ context.Context, ids []uuid.UUID) (map[uuid.UUID]string, error) {
@@ -125,7 +159,7 @@ func TestPublicListFiltersAndRanksCampaigns(t *testing.T) {
 		},
 	}
 	service := &service{store: store, now: func() time.Time { return now }}
-	result, err := service.ListPublic(context.Background(), &productID, nil)
+	result, err := service.ListPublic(context.Background(), &productID, nil, PageParam{})
 	if err != nil {
 		t.Fatalf("list public campaigns: %v", err)
 	}
@@ -142,9 +176,36 @@ func TestPublicListDoesNotFailWhenDecisionLogWriteFails(t *testing.T) {
 	id, productID := uuid.New(), uuid.New()
 	store := &fakeStore{decisionLogError: errors.New("log unavailable"), products: map[uuid.UUID]string{productID: "electronics"}, campaigns: map[uuid.UUID]models.Campaign{id: {ID: id, Status: models.CampaignStatusRunning, StartsAt: now.Add(-time.Hour), EndsAt: now.Add(time.Hour), ProductIDs: []uuid.UUID{productID}}}}
 	service := &service{store: store, now: func() time.Time { return now }}
-	result, err := service.ListPublic(context.Background(), &productID, nil)
+	result, err := service.ListPublic(context.Background(), &productID, nil, PageParam{})
 	if err != nil || len(result) != 1 {
 		t.Fatalf("decision log failure must not fail public list: result=%v err=%v", result, err)
+	}
+}
+
+func TestPublicListPassesBoundedPageToStore(t *testing.T) {
+	now := time.Now()
+	store := &fakeStore{products: map[uuid.UUID]string{}, campaigns: map[uuid.UUID]models.Campaign{}}
+	service := &service{store: store, now: func() time.Time { return now }}
+	if _, err := service.ListPublic(context.Background(), nil, nil, PageParam{Limit: 100, Offset: 7}); err != nil {
+		t.Fatalf("list public campaigns: %v", err)
+	}
+	if store.lastCandidateQuery.Limit != 20 || store.lastCandidateQuery.Offset != 7 {
+		t.Fatalf("candidate page = limit %d offset %d, want limit 20 offset 7", store.lastCandidateQuery.Limit, store.lastCandidateQuery.Offset)
+	}
+	if store.lastCandidateQuery.ContextType != models.EvaluationContextCampaignDiscovery {
+		t.Fatalf("candidate context = %q", store.lastCandidateQuery.ContextType)
+	}
+}
+
+func BenchmarkEvaluateRule(b *testing.B) {
+	rule := &models.RuleGroup{Operator: "and", Conditions: []models.RuleCondition{
+		{ID: "category", Fact: "product.category", Operator: "eq", Value: []byte(`"electronics"`)},
+		{ID: "price", Fact: "product.price", Operator: "gte", Value: []byte(`500`)},
+	}}
+	facts := models.EvaluationFacts{Product: &models.ProductFacts{Category: "electronics", Price: 1000}}
+	b.ResetTimer()
+	for range b.N {
+		evaluateRule(rule, facts)
 	}
 }
 

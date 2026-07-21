@@ -979,6 +979,14 @@ paths:
         in: query
         name: product_id
         type: string
+      - description: Candidate page size (default 20, maximum 20)
+        in: query
+        name: limit
+        type: integer
+      - description: Candidate offset (default 0)
+        in: query
+        name: offset
+        type: integer
       produces:
       - application/json
       responses:

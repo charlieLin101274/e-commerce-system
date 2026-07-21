@@ -222,6 +222,18 @@ func (c *Client) ListPublicCampaigns(ctx context.Context, token string, productI
 	return output, err
 }
 
+func (c *Client) ListPublicCampaignPage(ctx context.Context, token string, productID *uuid.UUID, limit, offset int) ([]models.Campaign, error) {
+	var output []models.Campaign
+	path := campaignPath("/campaigns", productID)
+	separator := "?"
+	if strings.Contains(path, "?") {
+		separator = "&"
+	}
+	path += fmt.Sprintf("%slimit=%d&offset=%d", separator, limit, offset)
+	err := c.do(ctx, http.MethodGet, path, token, nil, http.StatusOK, &output)
+	return output, err
+}
+
 func (c *Client) GetPublicCampaign(ctx context.Context, token string, id uuid.UUID, productID *uuid.UUID) (models.Campaign, error) {
 	var output models.Campaign
 	err := c.do(ctx, http.MethodGet, campaignPath("/campaigns/"+id.String(), productID), token, nil, http.StatusOK, &output)

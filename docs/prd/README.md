@@ -2,7 +2,7 @@
 
 ## Context
 
-本文件集描述建立於既有電商 MVP 之上的活動平台。第一階段 MVP 聚焦 Campaign、Rule Engine、Notification 與 Cart Recall；Repurchase、完整 Attribution 與 Analytics 為 post-MVP。
+本文件集描述建立於既有電商 MVP 之上的活動平台。本專案的實作時間為七天，重點是完成 Campaign、Rule Engine、Notification 與 Cart Recall 的完整流程。Repurchase、完整 Attribution、experiment 與 Analytics 為 post-MVP。
 
 基礎會員、商品、購物車與訂單流程視為 prerequisite，不重複建立另一套 commerce domain。新功能必須透過既有 service、store 與 PostgreSQL schema 演進。
 
@@ -27,6 +27,7 @@
 | [03-notification-and-cart-recall.md](03-notification-and-cart-recall.md) | Notification、事件與 Cart Recall |
 | [04-repurchase-and-attribution.md](04-repurchase-and-attribution.md) | Repurchase 與成效歸因 |
 | [05-non-functional-requirements.md](05-non-functional-requirements.md) | 一致性、安全性與 observability |
+| [06-growth-and-operations.md](06-growth-and-operations.md) | 營運流程、KPI、guardrails 與後續 experiment 設計 |
 
 ## Guiding Principles
 

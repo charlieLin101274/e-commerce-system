@@ -1,40 +1,50 @@
 # Non-functional Requirements
 
-## Performance
+## Context
 
-- Public Campaign List/Detail API：p95 小於 300 ms。
-- Rule evaluation：單一 Campaign p95 小於 20 ms；Public request 最多對 20 個 candidate Campaign 執行 evaluation。
-- Public Campaign List 必須先以 status、time range 與 product/category scope 篩選 candidate，再執行 Rule Engine；不得對全部 Campaign 串行評估。
-- Notification task creation：p95 小於 200 ms。
-- Worker throughput 與 queue lag 必須可觀測。
+本專案的實作時間為七天。MVP 的重點是完成一條可以實際驗證的 Cart Recall 流程，不是一次完成所有 production infrastructure。
 
-以上 latency 不包含 cold start，且需以固定的 MVP rule depth、condition count 與測試資料量測。若 candidate 超過 20 個，API 應先依 priority 與 Campaign ID 排序後截斷，後續再以 projection/cache 擴充容量。
+本文件把需求分成兩類：
 
-## Consistency
+- `MVP`：本次交付必須完成，也有測試驗證。
+- `Production Readiness Backlog`：正式上線前需要補上，但不列入七天 MVP 的驗收範圍。
 
-- Cart、Order 與 domain event 使用 Transactional Outbox。
-- Consumer 以 `event_id` 實作 inbox deduplication。
-- Notification task 以 database unique idempotency key 防止重複建立。
-- Campaign publish 與 rule version activation 必須在同一 transaction。
-- MVP conversion transition 使用 unique constraint 或等效 database constraint 防止重複記錄；完整 Attribution consistency 列為 post-MVP。
+## MVP Requirements
 
-## Security and Privacy
+### Performance
 
-- Admin APIs 使用 JWT role authorization，未來可替換 RBAC。
-- Public Campaign response 不揭露完整 audience rules、內部 tag 或 budget。
-- Rule facts 必須來自 server-side data，不信任 client 宣告的 member level、tag、order count。
-- Template variables 必須 escape，Deep Link 必須使用 allowlist scheme/domain。
-- Device Token 與聯絡偏好不得寫入一般 logs。
-- API 必須加入 rate limiting，Admin 與 Public key/credential scope 分離。
+- Public Campaign API 必須先在 PostgreSQL 篩選活動期間、商品範圍與 Rule context。
+- 每次 Public request 最多取得 20 個 Campaign candidates，再交給 Rule Engine 判斷。
+- Public Campaign List 支援 `limit` 與 `offset`。`limit` 預設及上限都是 20。
+- Rule Engine 篩選後的結果可能少於 `limit`，MVP 不會為了補滿一頁而重複查詢。
+- Campaign 排序固定使用 priority 由高到低，再使用 Campaign ID 排序。
 
-## Observability
+### Consistency and Reliability
 
-### Structured Logs
+- Cart 與 Order 必須在原本的 transaction 內寫入 Outbox event。
+- Cart Recall worker 以 `event_id` 做 inbox deduplication。
+- Notification Task 使用 unique idempotency key，避免建立重複 task。
+- Worker 使用 `FOR UPDATE SKIP LOCKED`，避免多個 worker 同時取得同一筆工作。
+- Worker crash 後，超過 processing timeout 的工作可以被重新取得。
+- Notification retry 使用 exponential backoff 與 jitter。
+- 暫時性錯誤可以 retry；永久錯誤會進入 Failed 狀態。
+- Campaign 或 Rule Engine 無法完成檢查時，不得直接發送通知。
+- Notification provider 發生錯誤時，不得影響 Cart 或 Order transaction。
 
-必要欄位：
+### Security and Privacy
+
+- Admin API 使用 JWT role authorization。
+- Public Campaign response 不回傳完整 eligibility rule、member tag 或其他內部資料。
+- Member、Product 與 Cart facts 必須由 server 取得，不信任 client 自行提供的資料。
+- Notification template variables 必須 escape。
+- Deep Link 只能使用允許的 scheme 與 host。
+- Token、credential 與 notification preference 不得寫入一般 application log。
+
+### Observability
+
+MVP 使用 structured JSON logs。依情境記錄以下欄位：
 
 - `request_id`
-- `trace_id`
 - `event_id`
 - `campaign_id`
 - `journey_type`
@@ -43,54 +53,73 @@
 - `decision`
 - `reason_code`
 
-`user_id` 僅在必要情境記錄，且不得使用 `event_origin` 作為使用者識別。
+不是每一筆 log 都會同時有全部欄位。例如一般 HTTP request 不一定有 Journey ID。
 
-### OpenTelemetry
+### Verification
 
-必要 spans：
+- Service business rules 使用 unit tests 驗證。
+- API、PostgreSQL migration 與 worker flow 使用 integration tests 驗證。
+- `go test ./...`、`go vet ./...` 與 `make integration-test` 必須通過。
 
-- `campaign.list`
-- `rule.evaluate`
-- `event.consume`
-- `cart_recall.evaluate`
-- `notification.create`
-- `notification.deliver`
+## Production Readiness Backlog
 
-`repurchase.evaluate` 與 `attribution.create` 為 post-MVP spans。
+以下項目很重要，但不列入七天 MVP acceptance criteria：
 
-### Prometheus Metrics
+### Platform Protection
 
-- `campaign_rule_evaluations_total`
-- `campaign_rule_evaluation_duration_seconds`
-- `journey_transitions_total`
-- `notification_tasks_total`
-- `notification_delivery_duration_seconds`
-- `notification_retries_total`
-- `event_consumer_lag_seconds`
-- `cart_recall_conversions_total`
+- Public 與 Admin API rate limiting。
+- Public 與 Admin 使用不同 credential scope。
+- Request body size limit 與更完整的 abuse protection。
 
-`attributed_orders_total` 與 `attributed_order_amount_total` 為 post-MVP metrics。
+### Observability
 
-## Reliability
+- OpenTelemetry trace propagation 與 exporter。
+- 核心 API、Rule Engine、event consumer、Journey 與 Notification spans。
+- Prometheus registry 與 metrics endpoint。
+- Worker throughput、consumer lag、retry、failure 與 Journey transition metrics。
+- Grafana dashboard 與 production alerts。
 
-- Worker 使用 bounded concurrency 與 context timeout。
-- Retry 使用 exponential backoff 與 jitter。
-- 超過最大 retry 次數進入 Failed/Dead Letter 狀態，支援人工 retry。
-- Campaign/Rule Engine 暫時不可用時不得發送未驗證的優惠通知。
-- Notification provider failure 不應阻塞 Cart/Order transaction。
+### Worker and Event Platform
 
-## Data Retention
+- 每個 DB 與 provider operation 的 context timeout。
+- Worker bounded concurrency 與 graceful drain。
+- 將 PostgreSQL Outbox polling 拆成 publisher、external queue 與 consumer。
+- Dead-letter inspection 與 event replay 工具。
+- 真實 Push provider integration。
 
-- Campaign 與 rule versions：至少保留兩年。
-- Eligibility decision log：MVP 保留 90 天。
-- Notification task：至少保留一年。
-- 完整 attribution retention policy 於 post-MVP 定義。
-- Raw event payload：MVP 保留 30 天，再轉為摘要或刪除。
+### Performance and Operations
+
+- 固定資料量的 load test 與 multi-instance soak test。
+- 使用 `EXPLAIN ANALYZE` 驗證 Campaign candidate query 與 indexes。
+- Eligibility decision logs、Notification Tasks 與 raw events 的清理工作。
+- Campaign 與 rule version 長期保存政策。
+
+## Current Event Flow
+
+MVP 沒有使用外部 message broker。目前流程如下：
+
+```text
+Cart / Order transaction
+        |
+        v
+PostgreSQL domain_outbox
+        |
+        v
+Cart Recall worker polling
+        |
+        v
+event_inbox deduplication
+        |
+        v
+Cart Recall Journey
+```
+
+Outbox polling 可以讓七天 MVP 保留 transaction consistency，也能實際驗證完整流程。正式流量增加後，再拆成 publisher 與 external queue。
 
 ## Risks
 
-- 同步跨 service 取得 facts 會增加 latency 與 availability coupling。
-- Delayed trigger 若只依靠 process memory，部署或 crash 後會遺失；必須持久化。
-- Rule 過度彈性會提高營運誤設風險；MVP 僅支援 allowlist facts/operators。
-- Marketing consent、frequency cap 與 Campaign eligibility 若在不同時間判斷，可能產生 race；發送前必須 final revalidation。
-- Campaign promised benefit 與 checkout 結果不一致會造成信任問題；Notification 內容不得保證最終價格或庫存。
+- PostgreSQL polling 適合 MVP，但事件量增加後可能增加 database load。
+- 同步讀取 Member、Product 與 Cart facts 會增加 latency 與 service coupling。
+- 只看 sent-to-order conversion 不能證明通知帶來 incremental growth。
+- Campaign eligibility、庫存與 consent 都可能在不同時間改變，因此發送前仍要再次檢查。
+- Notification 顯示的優惠只是 preview，Checkout 才是最後價格與庫存的 source of truth。

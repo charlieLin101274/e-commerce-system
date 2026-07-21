@@ -682,6 +682,18 @@ const docTemplate = `{
                         "description": "Product ID used for scope matching",
                         "name": "product_id",
                         "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Candidate page size (default 20, maximum 20)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Candidate offset (default 0)",
+                        "name": "offset",
+                        "in": "query"
                     }
                 ],
                 "responses": {

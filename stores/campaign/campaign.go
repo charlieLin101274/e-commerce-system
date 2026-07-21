@@ -17,11 +17,21 @@ type Store interface {
 	Update(context.Context, models.Campaign) (models.Campaign, error)
 	GetByID(context.Context, uuid.UUID) (models.Campaign, error)
 	List(context.Context) ([]models.Campaign, error)
+	ListPublicCandidates(context.Context, CandidateQuery) ([]models.Campaign, error)
 	GetProductCategories(context.Context, []uuid.UUID) (map[uuid.UUID]string, error)
 	GetProductFacts(context.Context, uuid.UUID) (models.ProductFacts, error)
 	GetMemberFacts(context.Context, uuid.UUID) (models.MemberFacts, error)
 	CreateRuleVersion(context.Context, uuid.UUID, models.EvaluationContextType, *models.RuleGroup) (int, error)
 	SaveDecisionLog(context.Context, DecisionLog) error
+}
+
+type CandidateQuery struct {
+	Now         time.Time
+	ProductID   *uuid.UUID
+	Category    string
+	ContextType models.EvaluationContextType
+	Limit       int
+	Offset      int
 }
 
 type DecisionLog struct {

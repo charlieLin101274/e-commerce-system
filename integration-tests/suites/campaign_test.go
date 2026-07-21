@@ -5,13 +5,106 @@ package suites
 import (
 	"encoding/json"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/linenxing/e-commerce-system/integration-tests/testkit"
 	"github.com/linenxing/e-commerce-system/models"
+	campaignstore "github.com/linenxing/e-commerce-system/stores/campaign"
 )
+
+func TestCampaignPublicPaginationAndDatabaseFiltering(t *testing.T) {
+	admin := testScenario.LoginAdmin(t)
+	product := testScenario.CreateProduct(t, admin.AccessToken, 1000, 10)
+	created := make([]testkit.AdminCampaign, 0, 3)
+	for priority := 1; priority <= 3; priority++ {
+		campaign := testScenario.CreateDraftCampaign(t, admin.AccessToken, product.ID, nil)
+		campaign.Priority = priority
+		campaign, err := testClient.UpdateCampaign(t.Context(), admin.AccessToken, campaign.ID, campaignInputFrom(campaign))
+		if err != nil {
+			t.Fatalf("update campaign priority: %v", err)
+		}
+		campaign, err = testClient.PublishCampaign(t.Context(), admin.AccessToken, campaign.ID)
+		if err != nil {
+			t.Fatalf("publish campaign: %v", err)
+		}
+		created = append(created, campaign)
+	}
+
+	first, err := testClient.ListPublicCampaignPage(t.Context(), "", &product.ID, 1, 0)
+	if err != nil {
+		t.Fatalf("list first campaign page: %v", err)
+	}
+	second, err := testClient.ListPublicCampaignPage(t.Context(), "", &product.ID, 1, 1)
+	if err != nil {
+		t.Fatalf("list second campaign page: %v", err)
+	}
+	if len(first) != 1 || first[0].ID != created[2].ID {
+		t.Fatalf("first page = %#v, want highest priority campaign %s", first, created[2].ID)
+	}
+	if len(second) != 1 || second[0].ID != created[1].ID {
+		t.Fatalf("second page = %#v, want second priority campaign %s", second, created[1].ID)
+	}
+
+	unrelated := testScenario.CreateProduct(t, admin.AccessToken, 1000, 10)
+	filtered, err := testClient.ListPublicCampaignPage(t.Context(), "", &unrelated.ID, 20, 0)
+	if err != nil {
+		t.Fatalf("list unrelated product campaigns: %v", err)
+	}
+	for _, campaign := range filtered {
+		if campaign.ID == created[0].ID || campaign.ID == created[1].ID || campaign.ID == created[2].ID {
+			t.Fatalf("database scope filtering returned unrelated campaign %s", campaign.ID)
+		}
+	}
+}
+
+func TestCampaignConcurrentDraftUpdateAllowsSingleWinner(t *testing.T) {
+	admin := testScenario.LoginAdmin(t)
+	product := testScenario.CreateProduct(t, admin.AccessToken, 1000, 10)
+	created := testScenario.CreateDraftCampaign(t, admin.AccessToken, product.ID, nil)
+
+	pool, err := pgxpool.New(t.Context(), testEnvironment.DatabaseURL)
+	if err != nil {
+		t.Fatalf("connect integration database: %v", err)
+	}
+	defer pool.Close()
+	store := campaignstore.NewPostgresStore(pool)
+	stale, err := store.GetByID(t.Context(), created.ID)
+	if err != nil {
+		t.Fatalf("load campaign before concurrent update: %v", err)
+	}
+
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	var wait sync.WaitGroup
+	for attempt := 1; attempt <= 2; attempt++ {
+		wait.Add(1)
+		go func(priority int) {
+			defer wait.Done()
+			value := stale
+			value.Priority = priority
+			<-start
+			_, err := store.Update(t.Context(), value)
+			results <- err
+		}(attempt)
+	}
+	close(start)
+	wait.Wait()
+	close(results)
+
+	succeeded := 0
+	for err := range results {
+		if err == nil {
+			succeeded++
+		}
+	}
+	if succeeded != 1 {
+		t.Fatalf("concurrent updates succeeded %d times, want exactly one winner", succeeded)
+	}
+}
 
 func TestCampaignLifecycleAndPublicVisibility(t *testing.T) {
 	admin := testScenario.LoginAdmin(t)

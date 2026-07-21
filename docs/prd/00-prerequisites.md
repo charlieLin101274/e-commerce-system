@@ -92,4 +92,4 @@ Campaign / Rule Engine / Journey / Notification
 
 活動平台可以讀取必要 commerce data，但不得直接修改購物車、庫存或訂單資料。
 
-MVP 中 Cart/Order API 不直接 publish message。Domain transaction 同時寫入 business data 與 Outbox event，再由 publisher 非同步送至 queue，避免 database commit 與 message publish 的 dual-write inconsistency。
+MVP 中 Cart/Order API 不直接 publish message。Domain transaction 同時寫入 business data 與 Outbox event，再由 Cart Recall worker polling Outbox，避免 business data 已完成但 event 遺失。External publisher 與 queue 列為 post-MVP。

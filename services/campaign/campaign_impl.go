@@ -191,29 +191,28 @@ func (s *service) GetAdmin(ctx context.Context, id uuid.UUID) (models.Campaign, 
 	return value, err
 }
 
-func (s *service) ListPublic(ctx context.Context, productID, userID *uuid.UUID) ([]models.Campaign, error) {
-	items, err := s.store.List(ctx)
-	if err != nil {
-		return nil, err
-	}
+func (s *service) ListPublic(ctx context.Context, productID, userID *uuid.UUID, page PageParam) ([]models.Campaign, error) {
+	page = normalizePage(page)
 	facts, err := s.discoveryFacts(ctx, productID, userID)
 	if err != nil {
 		return nil, err
 	}
 	category := discoveryCategory(facts)
+	items, err := s.store.ListPublicCandidates(ctx, campaignstore.CandidateQuery{Now: s.now(), ProductID: productID, Category: category, ContextType: models.EvaluationContextCampaignDiscovery, Limit: page.Limit, Offset: page.Offset})
+	if err != nil {
+		return nil, err
+	}
 	result := make([]models.Campaign, 0)
 	for _, value := range items {
-		if effectiveStatus(value, s.now()) == models.CampaignStatusRunning && matchesScope(value, productID, category) {
-			decision, evaluationErr := s.evaluate(ctx, value, models.EvaluationContextCampaignDiscovery, facts, false, true)
-			if evaluationErr != nil {
-				return nil, evaluationErr
-			}
-			if !decision.Eligible {
-				continue
-			}
-			value.Status = models.CampaignStatusRunning
-			result = append(result, value)
+		decision, evaluationErr := s.evaluate(ctx, value, models.EvaluationContextCampaignDiscovery, facts, false, true)
+		if evaluationErr != nil {
+			return nil, evaluationErr
 		}
+		if !decision.Eligible {
+			continue
+		}
+		value.Status = models.CampaignStatusRunning
+		result = append(result, value)
 	}
 	sort.Slice(result, func(i, j int) bool {
 		if result[i].Priority != result[j].Priority {
@@ -222,6 +221,21 @@ func (s *service) ListPublic(ctx context.Context, productID, userID *uuid.UUID) 
 		return result[i].ID.String() < result[j].ID.String()
 	})
 	return result, nil
+}
+
+func normalizePage(page PageParam) PageParam {
+	const defaultLimit = 20
+	const maximumLimit = 20
+	if page.Limit <= 0 {
+		page.Limit = defaultLimit
+	}
+	if page.Limit > maximumLimit {
+		page.Limit = maximumLimit
+	}
+	if page.Offset < 0 {
+		page.Offset = 0
+	}
+	return page
 }
 
 func (s *service) GetPublic(ctx context.Context, id uuid.UUID, productID, userID *uuid.UUID) (models.Campaign, error) {
@@ -298,20 +312,11 @@ func (s *service) MatchCartRecall(ctx context.Context, facts models.EvaluationFa
 		return models.Campaign{}, models.EvaluationResult{}, apperror.ErrInvalidInput
 	}
 	facts.Product.Category = normalizeCategory(facts.Product.Category)
-	items, err := s.store.List(ctx)
+	items, err := s.store.ListPublicCandidates(ctx, campaignstore.CandidateQuery{Now: s.now(), ProductID: &facts.Product.ID, Category: facts.Product.Category, ContextType: models.EvaluationContextCartRecall, Limit: 20})
 	if err != nil {
 		return models.Campaign{}, models.EvaluationResult{}, err
 	}
-	sort.Slice(items, func(i, j int) bool {
-		if items[i].Priority != items[j].Priority {
-			return items[i].Priority > items[j].Priority
-		}
-		return items[i].ID.String() < items[j].ID.String()
-	})
 	for _, value := range items {
-		if effectiveStatus(value, s.now()) != models.CampaignStatusRunning || value.RuleContextType != models.EvaluationContextCartRecall || !matchesScope(value, &facts.Product.ID, facts.Product.Category) {
-			continue
-		}
 		decision, evaluationErr := s.evaluate(ctx, value, models.EvaluationContextCartRecall, facts, true, true)
 		if evaluationErr != nil {
 			return models.Campaign{}, models.EvaluationResult{}, evaluationErr

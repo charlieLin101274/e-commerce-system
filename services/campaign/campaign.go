@@ -25,6 +25,11 @@ type WriteParam struct {
 	EligibilityRule       *models.RuleGroup
 }
 
+type PageParam struct {
+	Limit  int
+	Offset int
+}
+
 type Service interface {
 	Create(context.Context, uuid.UUID, WriteParam) (models.Campaign, error)
 	Update(context.Context, uuid.UUID, WriteParam) (models.Campaign, error)
@@ -34,7 +39,7 @@ type Service interface {
 	Archive(context.Context, uuid.UUID) (models.Campaign, error)
 	ListAdmin(context.Context) ([]models.Campaign, error)
 	GetAdmin(context.Context, uuid.UUID) (models.Campaign, error)
-	ListPublic(context.Context, *uuid.UUID, *uuid.UUID) ([]models.Campaign, error)
+	ListPublic(context.Context, *uuid.UUID, *uuid.UUID, PageParam) ([]models.Campaign, error)
 	GetPublic(context.Context, uuid.UUID, *uuid.UUID, *uuid.UUID) (models.Campaign, error)
 	EvaluatePublic(context.Context, uuid.UUID, *uuid.UUID, *uuid.UUID) (models.EvaluationResult, error)
 	ValidateRules(context.Context, uuid.UUID) ([]string, error)

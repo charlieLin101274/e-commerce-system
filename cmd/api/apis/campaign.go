@@ -3,6 +3,7 @@ package apis
 import (
 	"context"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -160,6 +161,8 @@ func (a *CampaignAPI) GetAdmin(c *gin.Context) {
 // @Tags Campaigns
 // @Produce json
 // @Param product_id query string false "Product ID used for scope matching"
+// @Param limit query int false "Candidate page size (default 20, maximum 20)"
+// @Param offset query int false "Candidate offset (default 0)"
 // @Success 200 {array} models.Campaign
 // @Router /campaigns [get]
 func (a *CampaignAPI) ListPublic(c *gin.Context) {
@@ -168,12 +171,36 @@ func (a *CampaignAPI) ListPublic(c *gin.Context) {
 		return
 	}
 	userID := optionalCurrentUserID(c)
-	values, err := a.service.ListPublic(c.Request.Context(), productID, userID)
+	page, ok := campaignPage(c)
+	if !ok {
+		return
+	}
+	values, err := a.service.ListPublic(c.Request.Context(), productID, userID, page)
 	if err != nil {
 		writeError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, values)
+}
+
+func campaignPage(c *gin.Context) (campaignservice.PageParam, bool) {
+	page := campaignservice.PageParam{}
+	var err error
+	if raw := c.Query("limit"); raw != "" {
+		page.Limit, err = strconv.Atoi(raw)
+		if err != nil || page.Limit <= 0 {
+			writeError(c, errorsInvalid())
+			return campaignservice.PageParam{}, false
+		}
+	}
+	if raw := c.Query("offset"); raw != "" {
+		page.Offset, err = strconv.Atoi(raw)
+		if err != nil || page.Offset < 0 {
+			writeError(c, errorsInvalid())
+			return campaignservice.PageParam{}, false
+		}
+	}
+	return page, true
 }
 
 // GetCampaign godoc

@@ -13,6 +13,7 @@ const (
 	defaultBaseURL       = "http://localhost:18080"
 	defaultAdminEmail    = "admin@example.com"
 	defaultAdminPassword = "Admin123!"
+	defaultDatabaseURL   = "postgres://ecommerce:ecommerce@localhost:15432/ecommerce?sslmode=disable"
 )
 
 type Environment struct {
@@ -20,6 +21,7 @@ type Environment struct {
 	AdminEmail    string
 	AdminPassword string
 	HTTPClient    *http.Client
+	DatabaseURL   string
 }
 
 func LoadEnvironment() Environment {
@@ -27,6 +29,7 @@ func LoadEnvironment() Environment {
 		BaseURL:       envOrDefault("INTEGRATION_API_URL", defaultBaseURL),
 		AdminEmail:    envOrDefault("INTEGRATION_ADMIN_EMAIL", defaultAdminEmail),
 		AdminPassword: envOrDefault("INTEGRATION_ADMIN_PASSWORD", defaultAdminPassword),
+		DatabaseURL:   envOrDefault("INTEGRATION_DATABASE_URL", defaultDatabaseURL),
 		HTTPClient: &http.Client{
 			Timeout: 10 * time.Second,
 		},

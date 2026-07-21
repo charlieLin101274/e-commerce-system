@@ -128,6 +128,31 @@ func (s *PostgresStore) List(ctx context.Context) ([]models.Campaign, error) {
 	return result, rows.Err()
 }
 
+func (s *PostgresStore) ListPublicCandidates(ctx context.Context, query CandidateQuery) ([]models.Campaign, error) {
+	rows, err := s.db.Query(ctx, `SELECT `+campaignColumns+` FROM campaigns c
+		LEFT JOIN campaign_rule_versions rv ON rv.campaign_id=c.id AND rv.version=c.active_rule_version
+		WHERE c.status IN ('scheduled','running') AND c.starts_at <= $1 AND c.ends_at > $1
+		AND ($2::uuid IS NULL OR EXISTS (
+			SELECT 1 FROM campaign_products cp WHERE cp.campaign_id=c.id AND cp.product_id=$2
+		) OR ($3::text <> '' AND EXISTS (
+			SELECT 1 FROM campaign_categories cc WHERE cc.campaign_id=c.id AND cc.category=$3
+		))) AND ($4::text = '' OR COALESCE(NULLIF(rv.context_type,''),'campaign_discovery')=$4)
+		ORDER BY c.priority DESC,c.id LIMIT $5 OFFSET $6`, query.Now, query.ProductID, query.Category, query.ContextType, query.Limit, query.Offset)
+	if err != nil {
+		return nil, fmt.Errorf("list public campaign candidates: %w", err)
+	}
+	defer rows.Close()
+	result := make([]models.Campaign, 0, query.Limit)
+	for rows.Next() {
+		value, scanErr := scanCampaign(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		result = append(result, value)
+	}
+	return result, rows.Err()
+}
+
 func (s *PostgresStore) GetProductCategories(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]string, error) {
 	result := make(map[uuid.UUID]string, len(ids))
 	if len(ids) == 0 {
