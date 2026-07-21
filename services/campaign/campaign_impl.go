@@ -16,8 +16,9 @@ import (
 )
 
 type service struct {
-	store campaignstore.Store
-	now   func() time.Time
+	store       campaignstore.Store
+	transaction campaignstore.TransactionManager
+	now         func() time.Time
 }
 
 const (
@@ -26,7 +27,11 @@ const (
 	cartRecallCandidateLimit = 100
 )
 
-func New(store campaignstore.Store) Service { return &service{store: store, now: time.Now} }
+func New(store campaignstore.Store) Service {
+	value := &service{store: store, now: time.Now}
+	value.transaction, _ = store.(campaignstore.TransactionManager)
+	return value
+}
 
 func (s *service) Create(ctx context.Context, createdBy uuid.UUID, param WriteParam) (models.Campaign, error) {
 	if param.ContextType == "" {
@@ -72,15 +77,21 @@ func (s *service) Update(ctx context.Context, id uuid.UUID, param WriteParam) (m
 	}
 	value.ID, value.Status, value.CreatedBy = current.ID, current.Status, current.CreatedBy
 	value.CreatedAt, value.UpdatedAt, value.PublishedAt = current.CreatedAt, current.UpdatedAt, current.PublishedAt
-	value, err = s.update(ctx, value)
+	update := func(store campaignstore.Store) error {
+		value, err = updateCampaign(ctx, store, value)
+		if err != nil || param.EligibilityRule == nil {
+			return err
+		}
+		_, err = store.CreateRuleVersion(ctx, value.ID, param.ContextType, param.EligibilityRule)
+		return err
+	}
+	if s.transaction != nil {
+		err = s.transaction.WithinTransaction(ctx, update)
+	} else {
+		err = update(s.store)
+	}
 	if err != nil {
-		return value, err
-	}
-	if param.EligibilityRule == nil {
-		return s.get(ctx, value.ID)
-	}
-	if _, err = s.store.CreateRuleVersion(ctx, value.ID, param.ContextType, param.EligibilityRule); err != nil {
-		return models.Campaign{}, err
+		return models.Campaign{}, mapStoreUpdateError(err)
 	}
 	return s.get(ctx, value.ID)
 }
@@ -424,14 +435,22 @@ func (s *service) get(ctx context.Context, id uuid.UUID) (models.Campaign, error
 }
 
 func (s *service) update(ctx context.Context, value models.Campaign) (models.Campaign, error) {
-	updated, err := s.store.Update(ctx, value)
+	updated, err := updateCampaign(ctx, s.store, value)
+	return updated, mapStoreUpdateError(err)
+}
+
+func updateCampaign(ctx context.Context, store campaignstore.Store, value models.Campaign) (models.Campaign, error) {
+	return store.Update(ctx, value)
+}
+
+func mapStoreUpdateError(err error) error {
 	if errors.Is(err, campaignstore.ErrConflict) {
-		return models.Campaign{}, apperror.ErrConflict
+		return apperror.ErrConflict
 	}
 	if errors.Is(err, campaignstore.ErrNotFound) {
-		return models.Campaign{}, apperror.ErrNotFound
+		return apperror.ErrNotFound
 	}
-	return updated, err
+	return err
 }
 
 func effectiveStatus(value models.Campaign, now time.Time) models.CampaignStatus {

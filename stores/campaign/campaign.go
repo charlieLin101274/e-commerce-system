@@ -25,6 +25,12 @@ type Store interface {
 	SaveDecisionLog(context.Context, DecisionLog) error
 }
 
+// TransactionManager supplies a Store bound to one database transaction.
+// Callers must use the Store passed to the callback.
+type TransactionManager interface {
+	WithinTransaction(context.Context, func(Store) error) error
+}
+
 type CandidateQuery struct {
 	Now         time.Time
 	ProductID   *uuid.UUID

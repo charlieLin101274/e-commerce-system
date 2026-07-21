@@ -8,13 +8,44 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/linenxing/e-commerce-system/models"
 )
 
-type PostgresStore struct{ db *pgxpool.Pool }
+type DBTX interface {
+	Begin(context.Context) (pgx.Tx, error)
+	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+	Query(context.Context, string, ...any) (pgx.Rows, error)
+	QueryRow(context.Context, string, ...any) pgx.Row
+}
 
-func NewPostgresStore(db *pgxpool.Pool) *PostgresStore { return &PostgresStore{db: db} }
+type PostgresStore struct {
+	db   DBTX
+	pool *pgxpool.Pool
+}
+
+func NewPostgresStore(db *pgxpool.Pool) *PostgresStore {
+	return &PostgresStore{db: db, pool: db}
+}
+
+func (s *PostgresStore) WithinTransaction(ctx context.Context, fn func(Store) error) error {
+	if s.pool == nil {
+		return errors.New("nested campaign transaction is not supported")
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin campaign transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err = fn(&PostgresStore{db: tx}); err != nil {
+		return err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit campaign transaction: %w", err)
+	}
+	return nil
+}
 
 const campaignColumns = `c.id,c.name,c.description,c.status,c.priority,c.starts_at,c.ends_at,
 c.promotion_title,c.promotion_description,c.benefit_type,c.benefit_value,c.maximum_discount_amount,

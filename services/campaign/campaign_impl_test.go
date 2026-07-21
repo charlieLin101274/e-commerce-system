@@ -24,6 +24,34 @@ type fakeStore struct {
 	candidateQueries   []campaignstore.CandidateQuery
 }
 
+type transactionalFakeStore struct {
+	*fakeStore
+	ruleError error
+}
+
+func (s *transactionalFakeStore) WithinTransaction(ctx context.Context, fn func(campaignstore.Store) error) error {
+	copyStore := &fakeStore{
+		campaigns: make(map[uuid.UUID]models.Campaign, len(s.campaigns)),
+		products:  s.products,
+	}
+	for id, campaign := range s.campaigns {
+		copyStore.campaigns[id] = campaign
+	}
+	txStore := &transactionalFakeStore{fakeStore: copyStore, ruleError: s.ruleError}
+	if err := fn(txStore); err != nil {
+		return err
+	}
+	s.campaigns = copyStore.campaigns
+	return nil
+}
+
+func (s *transactionalFakeStore) CreateRuleVersion(ctx context.Context, campaignID uuid.UUID, contextType models.EvaluationContextType, rule *models.RuleGroup) (int, error) {
+	if s.ruleError != nil {
+		return 0, s.ruleError
+	}
+	return s.fakeStore.CreateRuleVersion(ctx, campaignID, contextType, rule)
+}
+
 func (s *fakeStore) Create(_ context.Context, value models.Campaign) (models.Campaign, error) {
 	value.ID = uuid.New()
 	value.RuleVersion = 1
@@ -175,6 +203,49 @@ func TestCalculateBenefit(t *testing.T) {
 	}
 	if result.DiscountAmount != 1000 || result.FinalAmount != 0 {
 		t.Fatalf("discount must be capped by amount: %+v", result)
+	}
+}
+
+func TestUpdateRollsBackCampaignWhenRuleVersionCreationFails(t *testing.T) {
+	now := time.Now()
+	id := uuid.New()
+	original := models.Campaign{
+		ID:             id,
+		Name:           "Original",
+		Status:         models.CampaignStatusDraft,
+		StartsAt:       now.Add(time.Hour),
+		EndsAt:         now.Add(2 * time.Hour),
+		PromotionTitle: "Original promotion",
+		BenefitType:    models.BenefitTypeFixedAmount,
+		BenefitValue:   100,
+		Categories:     []string{"electronics"},
+		UpdatedAt:      now,
+	}
+	store := &transactionalFakeStore{
+		fakeStore: &fakeStore{
+			campaigns: map[uuid.UUID]models.Campaign{id: original},
+			products:  map[uuid.UUID]string{},
+		},
+		ruleError: errors.New("rule storage unavailable"),
+	}
+	service := New(store)
+	_, err := service.Update(context.Background(), id, WriteParam{
+		Name:            "Changed",
+		StartsAt:        original.StartsAt,
+		EndsAt:          original.EndsAt,
+		PromotionTitle:  "Changed promotion",
+		BenefitType:     models.BenefitTypeFixedAmount,
+		BenefitValue:    200,
+		Categories:      []string{"home"},
+		ContextType:     models.EvaluationContextCampaignDiscovery,
+		EligibilityRule: &models.RuleGroup{Operator: "and", Conditions: []models.RuleCondition{{Fact: "product.category", Operator: "eq", Value: []byte(`"home"`)}}},
+	})
+	if err == nil {
+		t.Fatal("expected rule version creation to fail")
+	}
+	stored := store.campaigns[id]
+	if stored.Name != original.Name || stored.BenefitValue != original.BenefitValue || stored.Categories[0] != original.Categories[0] {
+		t.Fatalf("campaign was partially updated after rollback: %+v", stored)
 	}
 }
 
