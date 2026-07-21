@@ -198,6 +198,7 @@ Promotion stacking、Buy X Get Y、tiered discount、coupon、跨商品組合與
 - MVP 不另設 rule write API；Admin 透過 Campaign Create/Update request 寫入 `context_type` 與 `eligibility_rule`。`rules/validate` 與 `rules/evaluate` 分別維持 validation 與 dry-run responsibility。
 - Campaign 只有 Draft 可由既有 Update API 編輯。資料層已保存 immutable rule versions 與 active version，但「已發布 Campaign 切換至新 rule version」尚無公開 Admin endpoint；此能力在營運需要修改已發布規則前另行補充，不屬 Stage 2 MVP 驗收阻擋項目。
 - Draft 每次明確帶入 `eligibility_rule` 的 Update 都建立新 version，即使 JSON 與前一版相同。MVP 優先保留完整修改軌跡，不進行 semantic deduplication。
+- Campaign 建立時一定會保存第一個 rule version 與 `context_type`。即使沒有額外 eligibility rule，也會保存 version；此時商品 scope 符合就視為 eligible。這可避免 scope-only Cart Recall Campaign 遺失 evaluation context。
 - `member_level` 與 `member_tags` 僅作為必要 Member facts 保存及讀取，不在 Stage 2 建立 audience engine 或會員標籤維護 API。
 - Cart Recall 的 member、cart 與 matched product facts 由 Stage 4 journey 組裝；Stage 2 僅提供相同 evaluator、context validation 與 Admin dry-run contract。
 - Browse mode 未提供 `product_id` 時不合成 product facts。依 missing fact 規則，引用 `product.*` 的 condition 為 `false`；此類 Campaign 不出現在 browse 結果。若產品需求改為 browse 僅套用 Member rule，需另行修改 contract，不在 evaluator 中隱含跳過 Product condition。
@@ -216,6 +217,8 @@ Promotion stacking、Buy X Get Y、tiered discount、coupon、跨商品組合與
 2. Campaign ID lexical order，作為 deterministic tie-breaker。
 
 結束時間、商品金額與建立時間等 ranking 維度列為 post-MVP。
+
+Cart Recall 依相同排序分批評估，每批 20 個、最多 100 個 candidates。此上限避免單一 Journey 執行無限制的 Rule evaluation；超過上限的重疊 Campaign 不保證會被匹配。
 
 ## Risks
 

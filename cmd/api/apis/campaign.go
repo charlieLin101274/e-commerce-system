@@ -188,7 +188,7 @@ func campaignPage(c *gin.Context) (campaignservice.PageParam, bool) {
 	var err error
 	if raw := c.Query("limit"); raw != "" {
 		page.Limit, err = strconv.Atoi(raw)
-		if err != nil || page.Limit <= 0 {
+		if err != nil || page.Limit <= 0 || page.Limit > 20 {
 			writeError(c, errorsInvalid())
 			return campaignservice.PageParam{}, false
 		}

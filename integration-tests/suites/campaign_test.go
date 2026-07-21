@@ -61,6 +61,57 @@ func TestCampaignPublicPaginationAndDatabaseFiltering(t *testing.T) {
 	}
 }
 
+func TestCampaignContextFilteringKeepsScopeOnlyCampaigns(t *testing.T) {
+	admin := testScenario.LoginAdmin(t)
+	product := testScenario.CreateProduct(t, admin.AccessToken, 1000, 10)
+	now := time.Now().UTC()
+	input := testkit.CampaignInput{
+		Name: "Scope-only Cart Recall", Priority: 10, StartsAt: now.Add(-time.Minute), EndsAt: now.Add(time.Hour),
+		PromotionTitle: "Return to cart", BenefitType: models.BenefitTypeFixedAmount, BenefitValue: 100,
+		ProductIDs: []uuid.UUID{product.ID}, ContextType: models.EvaluationContextCartRecall,
+	}
+	created, err := testClient.CreateCampaign(t.Context(), admin.AccessToken, input)
+	if err != nil {
+		t.Fatalf("create scope-only cart recall campaign: %v", err)
+	}
+	if created.RuleVersion != 1 || created.RuleContextType != models.EvaluationContextCartRecall || created.EligibilityRule != nil {
+		t.Fatalf("scope-only campaign rule metadata = %#v", created)
+	}
+	if _, err = testClient.PublishCampaign(t.Context(), admin.AccessToken, created.ID); err != nil {
+		t.Fatalf("publish scope-only cart recall campaign: %v", err)
+	}
+
+	pool, err := pgxpool.New(t.Context(), testEnvironment.DatabaseURL)
+	if err != nil {
+		t.Fatalf("connect integration database: %v", err)
+	}
+	defer pool.Close()
+	store := campaignstore.NewPostgresStore(pool)
+	candidates, err := store.ListPublicCandidates(t.Context(), campaignstore.CandidateQuery{
+		Now: now, ProductID: &product.ID, Category: product.Category,
+		ContextType: models.EvaluationContextCartRecall, Limit: 20,
+	})
+	if err != nil {
+		t.Fatalf("list cart recall candidates: %v", err)
+	}
+	if !containsCampaign(candidates, created.ID) {
+		t.Fatalf("cart recall candidates do not contain scope-only campaign %s", created.ID)
+	}
+	publicCampaigns, err := testClient.ListPublicCampaigns(t.Context(), "", &product.ID)
+	if err != nil {
+		t.Fatalf("list discovery campaigns: %v", err)
+	}
+	if containsCampaign(publicCampaigns, created.ID) {
+		t.Fatalf("cart recall campaign %s leaked into discovery list", created.ID)
+	}
+}
+
+func TestCampaignListRejectsLimitAboveMaximum(t *testing.T) {
+	if err := testClient.ExpectError(t.Context(), http.MethodGet, "/campaigns?limit=21", "", nil, http.StatusBadRequest, "invalid_request"); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestCampaignConcurrentDraftUpdateAllowsSingleWinner(t *testing.T) {
 	admin := testScenario.LoginAdmin(t)
 	product := testScenario.CreateProduct(t, admin.AccessToken, 1000, 10)

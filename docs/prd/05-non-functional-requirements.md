@@ -15,9 +15,11 @@
 
 - Public Campaign API 必須先在 PostgreSQL 篩選活動期間、商品範圍與 Rule context。
 - 每次 Public request 最多取得 20 個 Campaign candidates，再交給 Rule Engine 判斷。
-- Public Campaign List 支援 `limit` 與 `offset`。`limit` 預設及上限都是 20。
+- Public Campaign List 支援 `limit` 與 `offset`。`limit` 預設及上限都是 20；超過上限或小於 1 時回傳 `400 Bad Request`。
 - Rule Engine 篩選後的結果可能少於 `limit`，MVP 不會為了補滿一頁而重複查詢。
 - Campaign 排序固定使用 priority 由高到低，再使用 Campaign ID 排序。
+- Cart Recall 每批取得 20 個 candidates，最多評估 100 個。找到第一個 eligible Campaign 後立即停止。
+- 如果相同 scope 同時存在超過 100 個有效的 Cart Recall Campaign，排序在第 101 個之後的 Campaign 不保證會被匹配。營運人員應避免在相同時間建立過多重疊活動。
 
 ### Consistency and Reliability
 

@@ -20,6 +20,12 @@ type service struct {
 	now   func() time.Time
 }
 
+const (
+	publicCandidateLimit     = 20
+	cartRecallCandidateBatch = 20
+	cartRecallCandidateLimit = 100
+)
+
 func New(store campaignstore.Store) Service { return &service{store: store, now: time.Now} }
 
 func (s *service) Create(ctx context.Context, createdBy uuid.UUID, param WriteParam) (models.Campaign, error) {
@@ -224,13 +230,11 @@ func (s *service) ListPublic(ctx context.Context, productID, userID *uuid.UUID, 
 }
 
 func normalizePage(page PageParam) PageParam {
-	const defaultLimit = 20
-	const maximumLimit = 20
 	if page.Limit <= 0 {
-		page.Limit = defaultLimit
+		page.Limit = publicCandidateLimit
 	}
-	if page.Limit > maximumLimit {
-		page.Limit = maximumLimit
+	if page.Limit > publicCandidateLimit {
+		page.Limit = publicCandidateLimit
 	}
 	if page.Offset < 0 {
 		page.Offset = 0
@@ -312,18 +316,23 @@ func (s *service) MatchCartRecall(ctx context.Context, facts models.EvaluationFa
 		return models.Campaign{}, models.EvaluationResult{}, apperror.ErrInvalidInput
 	}
 	facts.Product.Category = normalizeCategory(facts.Product.Category)
-	items, err := s.store.ListPublicCandidates(ctx, campaignstore.CandidateQuery{Now: s.now(), ProductID: &facts.Product.ID, Category: facts.Product.Category, ContextType: models.EvaluationContextCartRecall, Limit: 20})
-	if err != nil {
-		return models.Campaign{}, models.EvaluationResult{}, err
-	}
-	for _, value := range items {
-		decision, evaluationErr := s.evaluate(ctx, value, models.EvaluationContextCartRecall, facts, true, true)
-		if evaluationErr != nil {
-			return models.Campaign{}, models.EvaluationResult{}, evaluationErr
+	for offset := 0; offset < cartRecallCandidateLimit; offset += cartRecallCandidateBatch {
+		items, err := s.store.ListPublicCandidates(ctx, campaignstore.CandidateQuery{Now: s.now(), ProductID: &facts.Product.ID, Category: facts.Product.Category, ContextType: models.EvaluationContextCartRecall, Limit: cartRecallCandidateBatch, Offset: offset})
+		if err != nil {
+			return models.Campaign{}, models.EvaluationResult{}, err
 		}
-		if decision.Eligible {
-			value.Status = models.CampaignStatusRunning
-			return value, decision, nil
+		for _, value := range items {
+			decision, evaluationErr := s.evaluate(ctx, value, models.EvaluationContextCartRecall, facts, true, true)
+			if evaluationErr != nil {
+				return models.Campaign{}, models.EvaluationResult{}, evaluationErr
+			}
+			if decision.Eligible {
+				value.Status = models.CampaignStatusRunning
+				return value, decision, nil
+			}
+		}
+		if len(items) < cartRecallCandidateBatch {
+			break
 		}
 	}
 	return models.Campaign{}, models.EvaluationResult{}, apperror.ErrNotFound

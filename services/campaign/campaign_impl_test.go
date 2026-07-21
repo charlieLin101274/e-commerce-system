@@ -21,13 +21,12 @@ type fakeStore struct {
 	decisionLogWrites  int
 	decisionLogError   error
 	lastCandidateQuery campaignstore.CandidateQuery
+	candidateQueries   []campaignstore.CandidateQuery
 }
 
 func (s *fakeStore) Create(_ context.Context, value models.Campaign) (models.Campaign, error) {
 	value.ID = uuid.New()
-	if value.EligibilityRule != nil {
-		value.RuleVersion = 1
-	}
+	value.RuleVersion = 1
 	s.campaigns[value.ID] = value
 	return value, nil
 }
@@ -58,6 +57,7 @@ func (s *fakeStore) List(context.Context) ([]models.Campaign, error) {
 
 func (s *fakeStore) ListPublicCandidates(_ context.Context, query campaignstore.CandidateQuery) ([]models.Campaign, error) {
 	s.lastCandidateQuery = query
+	s.candidateQueries = append(s.candidateQueries, query)
 	result := make([]models.Campaign, 0, len(s.campaigns))
 	for _, value := range s.campaigns {
 		if effectiveStatus(value, query.Now) != models.CampaignStatusRunning {
@@ -86,6 +86,39 @@ func (s *fakeStore) ListPublicCandidates(_ context.Context, query campaignstore.
 		end = len(result)
 	}
 	return result[start:end], nil
+}
+
+func TestMatchCartRecallScansNextCandidateBatch(t *testing.T) {
+	now := time.Now()
+	productID := uuid.New()
+	campaigns := make(map[uuid.UUID]models.Campaign, 21)
+	ineligibleRule := &models.RuleGroup{Operator: "and", Conditions: []models.RuleCondition{{Fact: "product.price", Operator: "gt", Value: []byte(`2000`)}}}
+	var expectedID uuid.UUID
+	for index := 0; index < 21; index++ {
+		id := uuid.New()
+		value := models.Campaign{ID: id, Status: models.CampaignStatusRunning, Priority: 100 - index, StartsAt: now.Add(-time.Hour), EndsAt: now.Add(time.Hour), BenefitType: models.BenefitTypeFixedAmount, BenefitValue: 100, ProductIDs: []uuid.UUID{productID}, RuleContextType: models.EvaluationContextCartRecall, EligibilityRule: ineligibleRule}
+		if index == 20 {
+			value.EligibilityRule = nil
+			expectedID = id
+		}
+		campaigns[id] = value
+	}
+	store := &fakeStore{products: map[uuid.UUID]string{productID: "electronics"}, campaigns: campaigns}
+	service := &service{store: store, now: func() time.Time { return now }}
+	matched, _, err := service.MatchCartRecall(context.Background(), models.EvaluationFacts{
+		Member:  &models.MemberFacts{ID: uuid.New()},
+		Product: &models.ProductFacts{ID: productID, Category: "electronics", Price: 1000, Status: models.ProductStatusActive},
+		Cart:    &models.CartFacts{TotalPrice: 1000, ItemCount: 1},
+	})
+	if err != nil {
+		t.Fatalf("match cart recall campaign: %v", err)
+	}
+	if matched.ID != expectedID {
+		t.Fatalf("matched campaign = %s, want candidate from second batch %s", matched.ID, expectedID)
+	}
+	if len(store.candidateQueries) != 2 || store.candidateQueries[1].Offset != 20 {
+		t.Fatalf("candidate queries = %#v, want second batch at offset 20", store.candidateQueries)
+	}
 }
 
 func (s *fakeStore) GetProductCategories(_ context.Context, ids []uuid.UUID) (map[uuid.UUID]string, error) {

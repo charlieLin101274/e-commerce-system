@@ -36,19 +36,17 @@ func (s *PostgresStore) Create(ctx context.Context, value models.Campaign) (mode
 	if err := insertScopes(ctx, tx, value); err != nil {
 		return models.Campaign{}, err
 	}
-	if value.EligibilityRule != nil {
-		data, marshalErr := json.Marshal(value.EligibilityRule)
-		if marshalErr != nil {
-			return models.Campaign{}, fmt.Errorf("marshal initial rule: %w", marshalErr)
-		}
-		if _, err = tx.Exec(ctx, `INSERT INTO campaign_rule_versions(campaign_id,version,context_type,eligibility_rule) VALUES($1,1,$2,$3)`, value.ID, value.RuleContextType, data); err != nil {
-			return models.Campaign{}, fmt.Errorf("insert initial rule version: %w", err)
-		}
-		if _, err = tx.Exec(ctx, `UPDATE campaigns SET active_rule_version=1 WHERE id=$1`, value.ID); err != nil {
-			return models.Campaign{}, fmt.Errorf("activate initial rule version: %w", err)
-		}
-		value.RuleVersion = 1
+	data, marshalErr := json.Marshal(value.EligibilityRule)
+	if marshalErr != nil {
+		return models.Campaign{}, fmt.Errorf("marshal initial rule: %w", marshalErr)
 	}
+	if _, err = tx.Exec(ctx, `INSERT INTO campaign_rule_versions(campaign_id,version,context_type,eligibility_rule) VALUES($1,1,$2,$3)`, value.ID, value.RuleContextType, data); err != nil {
+		return models.Campaign{}, fmt.Errorf("insert initial rule version: %w", err)
+	}
+	if _, err = tx.Exec(ctx, `UPDATE campaigns SET active_rule_version=1 WHERE id=$1`, value.ID); err != nil {
+		return models.Campaign{}, fmt.Errorf("activate initial rule version: %w", err)
+	}
+	value.RuleVersion = 1
 	if err := tx.Commit(ctx); err != nil {
 		return models.Campaign{}, fmt.Errorf("commit create campaign: %w", err)
 	}
