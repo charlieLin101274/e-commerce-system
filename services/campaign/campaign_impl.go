@@ -65,7 +65,7 @@ func (s *service) Update(ctx context.Context, id uuid.UUID, param WriteParam) (m
 		return models.Campaign{}, err
 	}
 	value.ID, value.Status, value.CreatedBy = current.ID, current.Status, current.CreatedBy
-	value.CreatedAt, value.PublishedAt = current.CreatedAt, current.PublishedAt
+	value.CreatedAt, value.UpdatedAt, value.PublishedAt = current.CreatedAt, current.UpdatedAt, current.PublishedAt
 	value, err = s.update(ctx, value)
 	if err != nil {
 		return value, err

@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/linenxing/e-commerce-system/base/response"
@@ -27,6 +29,44 @@ type ProductInput struct {
 	Price       int64                `json:"price"`
 	Stock       int64                `json:"stock"`
 	Status      models.ProductStatus `json:"status,omitempty"`
+}
+
+type CampaignInput struct {
+	Name                  string                       `json:"name"`
+	Description           string                       `json:"description"`
+	Priority              int                          `json:"priority"`
+	StartsAt              time.Time                    `json:"starts_at"`
+	EndsAt                time.Time                    `json:"ends_at"`
+	PromotionTitle        string                       `json:"promotion_title"`
+	PromotionDescription  string                       `json:"promotion_description"`
+	BenefitType           models.BenefitType           `json:"benefit_type"`
+	BenefitValue          int64                        `json:"benefit_value"`
+	MaximumDiscountAmount *int64                       `json:"maximum_discount_amount,omitempty"`
+	ProductIDs            []uuid.UUID                  `json:"product_ids"`
+	Categories            []string                     `json:"categories"`
+	ContextType           models.EvaluationContextType `json:"context_type,omitempty"`
+	EligibilityRule       *models.RuleGroup            `json:"eligibility_rule,omitempty"`
+}
+
+type AdminCampaign struct {
+	models.Campaign
+	RuleVersion     int                          `json:"rule_version"`
+	RuleContextType models.EvaluationContextType `json:"rule_context_type,omitempty"`
+	EligibilityRule *models.RuleGroup            `json:"eligibility_rule,omitempty"`
+}
+
+type RuleValidation struct {
+	Valid            bool     `json:"valid"`
+	ValidationErrors []string `json:"validation_errors"`
+}
+
+type Notification struct {
+	ID        uuid.UUID  `json:"id"`
+	Title     string     `json:"title"`
+	Body      string     `json:"body"`
+	DeepLink  string     `json:"deep_link,omitempty"`
+	OpenedAt  *time.Time `json:"opened_at,omitempty"`
+	CreatedAt time.Time  `json:"created_at"`
 }
 
 func NewClient(environment Environment) *Client {
@@ -121,6 +161,125 @@ func (c *Client) GetOrder(ctx context.Context, token string, id uuid.UUID) (mode
 	var output models.OrderResp
 	err := c.do(ctx, http.MethodGet, "/orders/"+id.String(), token, nil, http.StatusOK, &output)
 	return output, err
+}
+
+func (c *Client) CreateCampaign(ctx context.Context, token string, input CampaignInput) (AdminCampaign, error) {
+	var output AdminCampaign
+	err := c.do(ctx, http.MethodPost, "/admin/campaigns", token, input, http.StatusCreated, &output)
+	return output, err
+}
+
+func (c *Client) UpdateCampaign(ctx context.Context, token string, id uuid.UUID, input CampaignInput) (AdminCampaign, error) {
+	var output AdminCampaign
+	err := c.do(ctx, http.MethodPut, "/admin/campaigns/"+id.String(), token, input, http.StatusOK, &output)
+	return output, err
+}
+
+func (c *Client) GetAdminCampaign(ctx context.Context, token string, id uuid.UUID) (AdminCampaign, error) {
+	var output AdminCampaign
+	err := c.do(ctx, http.MethodGet, "/admin/campaigns/"+id.String(), token, nil, http.StatusOK, &output)
+	return output, err
+}
+
+func (c *Client) ListAdminCampaigns(ctx context.Context, token string) ([]AdminCampaign, error) {
+	var output []AdminCampaign
+	err := c.do(ctx, http.MethodGet, "/admin/campaigns", token, nil, http.StatusOK, &output)
+	return output, err
+}
+
+func (c *Client) PublishCampaign(ctx context.Context, token string, id uuid.UUID) (AdminCampaign, error) {
+	return c.transitionCampaign(ctx, token, id, "publish")
+}
+
+func (c *Client) PauseCampaign(ctx context.Context, token string, id uuid.UUID) (AdminCampaign, error) {
+	return c.transitionCampaign(ctx, token, id, "pause")
+}
+
+func (c *Client) ResumeCampaign(ctx context.Context, token string, id uuid.UUID) (AdminCampaign, error) {
+	return c.transitionCampaign(ctx, token, id, "resume")
+}
+
+func (c *Client) ArchiveCampaign(ctx context.Context, token string, id uuid.UUID) (AdminCampaign, error) {
+	return c.transitionCampaign(ctx, token, id, "archive")
+}
+
+func (c *Client) ValidateCampaignRules(ctx context.Context, token string, id uuid.UUID) (RuleValidation, error) {
+	var output RuleValidation
+	err := c.do(ctx, http.MethodPost, "/admin/campaigns/"+id.String()+"/rules/validate", token, nil, http.StatusOK, &output)
+	return output, err
+}
+
+func (c *Client) EvaluateCampaignRules(ctx context.Context, token string, id uuid.UUID, contextType models.EvaluationContextType, facts models.EvaluationFacts) (models.EvaluationResult, error) {
+	var output models.EvaluationResult
+	body := map[string]any{"context_type": contextType, "facts": facts}
+	err := c.do(ctx, http.MethodPost, "/admin/campaigns/"+id.String()+"/rules/evaluate", token, body, http.StatusOK, &output)
+	return output, err
+}
+
+func (c *Client) ListPublicCampaigns(ctx context.Context, token string, productID *uuid.UUID) ([]models.Campaign, error) {
+	var output []models.Campaign
+	err := c.do(ctx, http.MethodGet, campaignPath("/campaigns", productID), token, nil, http.StatusOK, &output)
+	return output, err
+}
+
+func (c *Client) GetPublicCampaign(ctx context.Context, token string, id uuid.UUID, productID *uuid.UUID) (models.Campaign, error) {
+	var output models.Campaign
+	err := c.do(ctx, http.MethodGet, campaignPath("/campaigns/"+id.String(), productID), token, nil, http.StatusOK, &output)
+	return output, err
+}
+
+func (c *Client) EvaluatePublicCampaign(ctx context.Context, token string, id uuid.UUID, productID *uuid.UUID) (models.EvaluationResult, error) {
+	var output models.EvaluationResult
+	err := c.do(ctx, http.MethodPost, campaignPath("/campaigns/"+id.String()+"/evaluate", productID), token, nil, http.StatusOK, &output)
+	return output, err
+}
+
+func (c *Client) GetNotificationPreferences(ctx context.Context, token string) (models.NotificationPreferences, error) {
+	var output models.NotificationPreferences
+	err := c.do(ctx, http.MethodGet, "/me/notification-preferences", token, nil, http.StatusOK, &output)
+	return output, err
+}
+
+func (c *Client) UpdateNotificationPreferences(ctx context.Context, token string, preferences models.NotificationPreferences) (models.NotificationPreferences, error) {
+	var output models.NotificationPreferences
+	err := c.do(ctx, http.MethodPut, "/me/notification-preferences", token, preferences, http.StatusOK, &output)
+	return output, err
+}
+
+func (c *Client) ListNotifications(ctx context.Context, token string) ([]Notification, error) {
+	var output []Notification
+	err := c.do(ctx, http.MethodGet, "/notifications", token, nil, http.StatusOK, &output)
+	return output, err
+}
+
+func (c *Client) OpenNotification(ctx context.Context, token string, id uuid.UUID) error {
+	return c.do(ctx, http.MethodPost, "/notifications/"+id.String()+"/open", token, nil, http.StatusNoContent, nil)
+}
+
+func (c *Client) ListAdminNotificationTasks(ctx context.Context, token string) ([]models.NotificationTask, error) {
+	var output []models.NotificationTask
+	err := c.do(ctx, http.MethodGet, "/admin/notification-tasks", token, nil, http.StatusOK, &output)
+	return output, err
+}
+
+func (c *Client) GetAdminNotificationTask(ctx context.Context, token string, id uuid.UUID) (models.NotificationTask, error) {
+	var output models.NotificationTask
+	err := c.do(ctx, http.MethodGet, "/admin/notification-tasks/"+id.String(), token, nil, http.StatusOK, &output)
+	return output, err
+}
+
+func (c *Client) transitionCampaign(ctx context.Context, token string, id uuid.UUID, action string) (AdminCampaign, error) {
+	var output AdminCampaign
+	err := c.do(ctx, http.MethodPost, "/admin/campaigns/"+id.String()+"/"+action, token, nil, http.StatusOK, &output)
+	return output, err
+}
+
+func campaignPath(path string, productID *uuid.UUID) string {
+	if productID == nil {
+		return path
+	}
+	values := url.Values{"product_id": []string{productID.String()}}
+	return path + "?" + values.Encode()
 }
 
 func (c *Client) ExpectError(ctx context.Context, method, path, token string, body any, status int, code string) error {

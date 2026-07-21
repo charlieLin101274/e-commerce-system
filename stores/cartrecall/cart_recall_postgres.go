@@ -149,7 +149,7 @@ func (s *PostgresStore) completeOrder(ctx context.Context, tx pgx.Tx, event mode
 		converted_order_id=CASE WHEN candidate.converts THEN $2 ELSE j.converted_order_id END,
 		cancel_reason=CASE WHEN candidate.converts THEN NULL ELSE 'ORDER_ALREADY_COMPLETED' END,
 		updated_at=$4 FROM candidates candidate WHERE j.id=candidate.id
-		RETURNING id,campaign_id,notification_task_id,converted_order_id,matched_product_ids,status
+		RETURNING j.id,j.campaign_id,j.notification_task_id,j.converted_order_id,j.matched_product_ids,j.status
 	), cancelled_tasks AS (UPDATE notification_tasks SET status='cancelled',failure_code='ORDER_ALREADY_COMPLETED',updated_at=$4
 		WHERE id IN (SELECT notification_task_id FROM transitioned WHERE status='cancelled') AND status IN ('pending','processing','retry_scheduled')
 	) SELECT id,campaign_id,notification_task_id,converted_order_id,matched_product_ids,status FROM transitioned`, payload.UserID, payload.OrderID, payload.ProductIDs, event.OccurredAt)

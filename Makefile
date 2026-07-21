@@ -34,5 +34,11 @@ integration-down:
 integration-test: integration-up
 	@status=0; \
 	go test -tags=integration ./integration-tests/suites/... || status=$$?; \
+	if [ $$status -ne 0 ]; then \
+		docker compose -p ecommerce-integration \
+			-f docker-compose.yaml \
+			-f integration-tests/compose.override.yaml \
+			logs --no-color; \
+	fi; \
 	$(MAKE) integration-down; \
 	exit $$status
